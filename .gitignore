@@ -1,5 +1,7 @@
 venv/
 .env
+oauth_creds.json
+token.json
 __pycache__/
 *.pyc
 *.docx

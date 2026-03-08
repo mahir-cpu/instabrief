@@ -1,12 +1,14 @@
 import json
 import anthropic
+from dotenv import load_dotenv
+load_dotenv()
 
 client = anthropic.Anthropic()
 
-SYSTEM_PROMPT = """You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief.
+SYSTEM_PROMPT = """You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief, an agentic AI solutions company.
 
 RESEARCH RULES:
-1) Start with "why now?" — find a current inflection (growth, M&A, new product, regulation, margin pressure, competitive threat, leadership change).
+1) Start with "why now?" -- find a current inflection (growth, M&A, new product, regulation, margin pressure, competitive threat, leadership change).
 2) Business model in one sentence.
 3) Revenue + scale: revenue, employee count, geo footprint. If unknown, estimate and label "Est."
 4) Use primary sources: investor relations, annual reports, earnings calls, press releases, PE announcements, executive interviews, credible industry coverage, company site.
@@ -14,82 +16,78 @@ RESEARCH RULES:
 6) Find non-obvious pain: search for the company + glassdoor, reddit, implementation, integration, complaints, support, EDI/API, ERP/CRM/TMS/WMS.
 7) Competitive benchmarking: 3-6 direct competitors and what they do better/worse, especially around AI and automation.
 8) AI/automation posture: tools mentioned, whether AI is internal-only vs customer-facing.
+9) If meeting attendees are provided, research each person thoroughly via LinkedIn and web. Find their current role, background, education, career history, and recent activity. Understand what they care about so the brief can speak to their priorities.
+
+STYLE RULES:
+- Be concise and high-signal. Every sentence must earn its place.
+- Use concrete numbers, names, and specifics. No generic filler.
+- Bullet points should have a bold title followed by a colon and a description.
+- Highest-Impact solutions should each have a bold name, then a paragraph describing what it does and why it matters to THIS company specifically.
+- Best Approach should be ONE paragraph: combine the inflection point framing with how to position the solution, what language to use, and what NOT to lead with.
+- Core Services: 7 concise bullets.
+- AI Insight: ONE paragraph that is high-signal, impact-focused, and comprehensive. Cover what tech they have today, what AI gaps exist, and why the window is open -- all in a single dense paragraph. Name specific platforms, tools, and competitors.
 
 CRITICAL: Return ONLY a valid JSON object. No markdown, no preamble, no backticks.
+
 The JSON must have EXACTLY these top-level keys:
 
 {
   "company_name": "string",
-  "parent_context": "string",
+  "company_context": "Max 3 sentences. Lead with the single most important thing about this company right now (acquisition, leadership change, major milestone). Then ownership structure and key subsidiaries. Every word must earn its place.",
+  "meeting_attendees": [
+    {
+      "name": "Full Name",
+      "linkedin_url": "URL or empty string",
+      "current_position": "Their current title and company, when they started, and what they oversee. 2-3 sentences.",
+      "education": "Degree(s) and school(s). 1 sentence.",
+      "career_history": "2-3 sentences covering their most relevant prior roles.",
+      "awards": "Any relevant awards or recognition, or empty string"
+    }
+  ],
   "client_profile": {
-    "what_they_do": "one sentence",
-    "markets_served": "comma-separated list",
-    "revenue": "value or Est. range",
-    "scale": "employees + footprint in one sentence",
-    "recent_growth": "one sentence"
+    "what_they_do": "One rich sentence including scale numbers, customer count, geographic reach, and key platforms.",
+    "markets_served": "Comma-separated list of specific market segments",
+    "revenue": "Revenue figure with year, subsidiary revenue if notable, growth trajectory.",
+    "scale": "One sentence: employees, locations with specifics, field team size, fleet size.",
+    "recent_growth": "One sentence: revenue trajectory, acquisition pace, major competitive dynamics."
   },
-  "core_pain_points": ["pain1", "pain2", "pain3", "pain4"],
+  "core_pain_points": [
+    {
+      "title": "2-3 word bold title",
+      "description": "1-2 sentences with concrete details -- system names, counts, SLA targets."
+    }
+  ],
   "highest_impact_solutions": [
-    {"name": "Solution Name", "description": "one-line what it does + where it fits"}
+    {
+      "name": "Solution Name",
+      "description": "2-4 sentences: what it does, how it works, what systems it connects to, specific business outcome."
+    }
   ],
-  "best_approach": "one paragraph",
-  "company_background": {
-    "business_model": "one sentence",
-    "founding_and_offering": "2-4 sentences",
-    "why_now": "2-4 sentences"
-  },
-  "core_services": ["service1", "service2", "...up to 7"],
-  "revenue_drivers": {
-    "intro": "Company's revenue comes from three interconnected streams:",
-    "streams": [
-      {"name": "Stream Name", "description": "2-4 sentences"}
-    ],
-    "primary_driver_summary": "one paragraph"
-  },
-  "specific_pain_points": [
-    {"title": "Pain Point Title", "body": "2-5 sentences"}
+  "best_approach": "One paragraph combining: the inflection point framing, how to position the solution, what language to use (reference their mission/values), what existing investments to build on, and what NOT to lead with.",
+  "core_services": [
+    "Concise service description with scale numbers"
   ],
-  "ai_use_cases": {
-    "setup": "1-2 sentences tying use cases to their situation",
-    "cases": [
-      {
-        "name": "Use Case Name",
-        "problem": "1-3 sentences",
-        "solution": "1-3 sentences describing an autonomous/agentic workflow",
-        "roi_angle": "1 sentence with concrete KPI lever"
-      }
-    ]
-  },
-  "best_angle": ["paragraph1", "paragraph2", "paragraph3"],
-  "the_pitch": {
-    "headline": "one line headline",
-    "body": "one paragraph"
-  },
-  "who_to_target": [
-    {"name": "Person Name", "title": "Their Title", "rationale": "1 sentence"}
-  ],
-  "what_to_avoid": ["mistake1 (without the word Don't)", "mistake2", "mistake3"],
-  "ai_insight": "one paragraph",
-  "key_stakeholders": {
-    "summary": "one paragraph on org signals",
-    "leaders": [
-      {"name": "Leader Name", "signal": "role signal"}
-    ]
-  },
-  "competitive_position": "one paragraph"
+  "ai_insight": "Concise, direct, to the point. State what tech they run today (name platforms), what AI they lack, and why the window is open. No buildup, no transitions, no filler. Every sentence is a fact or an insight.",
+  "competitive_position": "DEPRECATED - return empty string"
 }
 
-Include 7 specific_pain_points, 5 ai_use_cases, and 4 who_to_target entries.
-Make everything concrete, specific, and investor-grade. No generic filler."""
+IMPORTANT COUNTS:
+- meeting_attendees: include all provided attendees (0 if none)
+- core_pain_points: exactly 4
+- highest_impact_solutions: exactly 4
+- core_services: exactly 7
+- ai_insight: exactly 1 paragraph (as a string)
+- best_approach: exactly 1 paragraph (as a string)
+
+Every claim should reference a specific number, system, person, or event."""
 
 
-def generate_brief(company_name: str, parent_context: str = "") -> dict:
-    user_message = f"""Research the following company and produce the complete brief as JSON.
+def generate_brief(company_name, parent_context="", attendees=""):
+    attendee_section = ""
+    if attendees:
+        attendee_section = "\n\nMEETING ATTENDEES TO RESEARCH:\n" + attendees + "\n\nResearch each person thoroughly. Find their LinkedIn, current role, education, career history, and any awards."
 
-Company: {company_name}
-Parent/Owner/Context: {parent_context or '(none - research this)'}
-
-Do thorough web research. Then return the JSON object as specified. ONLY valid JSON, nothing else."""
+    user_message = "Research the following company and produce the complete brief as JSON.\n\nCompany: " + company_name + "\nParent/Owner/Context: " + (parent_context or "(none - research this)") + attendee_section + "\n\nDo thorough web research. Then return the JSON object as specified. ONLY valid JSON, nothing else."
 
     response = client.messages.create(
         model="claude-opus-4-6",
@@ -119,4 +117,4 @@ Do thorough web research. Then return the JSON object as specified. ONLY valid J
         end = text.rfind("}")
         if start != -1 and end != -1:
             return json.loads(text[start:end + 1])
-        raise ValueError(f"Could not parse Claude response as JSON. First 500 chars: {text[:500]}")
+        raise ValueError("Could not parse Claude response as JSON. First 500 chars: " + text[:500])

@@ -61,12 +61,43 @@ def _add_body(doc, text, justify=True):
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
 
+def _add_body_italic(doc, text):
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    _set_font(run, color=GRAY)
+    run.italic = True
+    p.paragraph_format.space_after = Pt(6)
+    p.paragraph_format.line_spacing = 1.15
+
+
 def _add_bullet(doc, text):
     p = doc.add_paragraph()
     run = p.add_run("\u00B7  " + text)
     _set_font(run)
     p.paragraph_format.left_indent = Inches(0.25)
     p.paragraph_format.space_after = Pt(4)
+    p.paragraph_format.line_spacing = 1.15
+
+
+def _add_bold_bullet(doc, title, description):
+    p = doc.add_paragraph()
+    bold_run = p.add_run("\u00B7  " + title + ": ")
+    _set_font(bold_run, bold=True)
+    desc_run = p.add_run(description)
+    _set_font(desc_run)
+    p.paragraph_format.left_indent = Inches(0.25)
+    p.paragraph_format.space_after = Pt(4)
+    p.paragraph_format.line_spacing = 1.15
+
+
+def _add_sub_bullet(doc, label, text):
+    p = doc.add_paragraph()
+    bold_run = p.add_run("\u00B7  " + label + " ")
+    _set_font(bold_run, bold=True)
+    text_run = p.add_run(text)
+    _set_font(text_run)
+    p.paragraph_format.left_indent = Inches(0.5)
+    p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.15
 
 
@@ -99,112 +130,74 @@ def build_docx(data):
     run = p_title.add_run(data["company_name"])
     _set_font(run, size=Pt(28), color=NAVY, bold=True)
 
-    pc = data.get("parent_context", "")
-    if pc and pc not in ("", "(none)", "(none - research this)"):
-        p_parent = doc.add_paragraph()
-        run = p_parent.add_run(pc)
-        _set_font(run, size=Pt(14), color=GRAY)
-
     p_div = doc.add_paragraph()
     _add_bottom_border(p_div, color="2E86C1", width="6")
-    p_div.paragraph_format.space_after = Pt(12)
+    p_div.paragraph_format.space_after = Pt(6)
+
+    ctx = data.get("company_context", "")
+    if ctx:
+        _add_body_italic(doc, ctx)
+
+    attendees = data.get("meeting_attendees", [])
+    if attendees:
+        _add_section_header(doc, "Meeting Attendees")
+        for person in attendees:
+            p = doc.add_paragraph()
+            run = p.add_run(person.get("name", ""))
+            _set_font(run, size=Pt(12), color=NAVY, bold=True)
+            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_after = Pt(2)
+
+            if person.get("current_position"):
+                _add_sub_bullet(doc, "Current Position:", person["current_position"])
+            if person.get("education"):
+                _add_sub_bullet(doc, "Education:", person["education"])
+            if person.get("career_history"):
+                _add_sub_bullet(doc, "Career History:", person["career_history"])
+            if person.get("awards"):
+                _add_sub_bullet(doc, "Awards:", person["awards"])
 
     _add_section_header(doc, "Client Profile")
-    profile = data["client_profile"]
-    labels = [
+    profile = data.get("client_profile", {})
+    for label, key in [
         ("What they do:", "what_they_do"),
         ("Markets served:", "markets_served"),
         ("Revenue:", "revenue"),
         ("Scale:", "scale"),
         ("Recent growth / M&A context:", "recent_growth"),
-    ]
-    for label, key in labels:
+    ]:
         _add_labeled_line(doc, label, profile.get(key, "N/A"))
 
     _add_section_header(doc, "Core Pain Points")
-    for pain in data.get("core_pain_points", []):
-        _add_bullet(doc, pain)
+    for pp in data.get("core_pain_points", []):
+        _add_bold_bullet(doc, pp["title"], pp["description"])
 
     _add_section_header(doc, "Highest-Impact Agentic AI Solutions")
-    for sol in data.get("highest_impact_solutions", []):
-        _add_bullet(doc, sol["name"] + " -- " + sol["description"])
+    for i, sol in enumerate(data.get("highest_impact_solutions", []), 1):
+        _add_subsection_header(doc, str(i) + ". " + sol["name"])
+        _add_body(doc, sol["description"])
 
     _add_section_header(doc, "Best Approach")
-    _add_body(doc, data.get("best_approach", ""))
-
-    _add_section_header(doc, "Company Background")
-    bg = data.get("company_background", {})
-    _add_body(doc, bg.get("business_model", ""))
-    _add_body(doc, bg.get("founding_and_offering", ""))
-    _add_body(doc, bg.get("why_now", ""))
+    ba = data.get("best_approach", "")
+    if isinstance(ba, list):
+        for para in ba:
+            _add_body(doc, para)
+    else:
+        _add_body(doc, ba)
 
     _add_section_header(doc, "Core Services")
     for svc in data.get("core_services", []):
         _add_bullet(doc, svc)
 
-    _add_section_header(doc, "Revenue Drivers")
-    rd = data.get("revenue_drivers", {})
-    _add_body(doc, rd.get("intro", ""))
-    for stream in rd.get("streams", []):
-        _add_subsection_header(doc, stream["name"])
-        _add_body(doc, stream["description"])
-    _add_body(doc, rd.get("primary_driver_summary", ""))
+    _add_section_header(doc, "Relevant AI-Related Insight")
+    ai = data.get("ai_insight", "")
+    if isinstance(ai, list):
+        for para in ai:
+            _add_body(doc, para)
+    else:
+        _add_body(doc, ai)
 
-    company_name = data.get("company_name", "the Company")
-
-    _add_section_header(doc, "Specific Pain Points " + company_name + " Faces")
-    for i, pp in enumerate(data.get("specific_pain_points", []), 1):
-        _add_subsection_header(doc, str(i) + ". " + pp["title"])
-        _add_body(doc, pp["body"])
-
-    _add_section_header(doc, "AI Use Cases to Pitch " + company_name)
-    ai = data.get("ai_use_cases", {})
-    _add_body(doc, ai.get("setup", ""))
-    for i, case in enumerate(ai.get("cases", []), 1):
-        _add_subsection_header(doc, str(i) + ". " + case["name"])
-        _add_labeled_line(doc, "The Problem:", case["problem"])
-        _add_labeled_line(doc, "The Solution:", case["solution"])
-        _add_labeled_line(doc, "ROI Angle:", case["roi_angle"])
-
-    _add_section_header(doc, "Best Angle to Approach " + company_name + " for Agentic AI")
-    for para in data.get("best_angle", []):
-        _add_body(doc, para)
-
-    _add_section_header(doc, "The Pitch")
-    pitch = data.get("the_pitch", {})
-    p = doc.add_paragraph()
-    run = p.add_run(pitch.get("headline", ""))
-    _set_font(run, size=Pt(11), bold=True, color=CHARCOAL)
-    p.paragraph_format.space_after = Pt(6)
-    _add_body(doc, pitch.get("body", ""))
-
-    _add_section_header(doc, "Who to Target")
-    for person in data.get("who_to_target", []):
-        label = person["name"] + " (" + person["title"] + "):"
-        _add_labeled_line(doc, label, person["rationale"])
-
-    _add_section_header(doc, "What to Avoid")
-    for item in data.get("what_to_avoid", []):
-        p = doc.add_paragraph()
-        bold_run = p.add_run("Don't ")
-        _set_font(bold_run, bold=True)
-        text_run = p.add_run(item)
-        _set_font(text_run)
-        p.paragraph_format.space_after = Pt(6)
-
-    _add_section_header(doc, "Relevant AI-related Insight")
-    _add_body(doc, data.get("ai_insight", ""))
-
-    _add_section_header(doc, "Key Stakeholders")
-    ks = data.get("key_stakeholders", {})
-    _add_body(doc, ks.get("summary", ""))
-    for leader in ks.get("leaders", []):
-        _add_bullet(doc, leader["name"] + " -- " + leader["signal"])
-
-    _add_section_header(doc, company_name + "'s Competitive Position")
-    _add_body(doc, data.get("competitive_position", ""))
-
-    safe_name = company_name.replace(" ", "_").replace("/", "-")
-    filepath = os.path.join(tempfile.gettempdir(), safe_name + "_Meeting_Prep_Brief.docx")
+    safe_name = data.get("company_name", "Brief").replace(" ", "_").replace("/", "-")
+    filepath = os.path.join(tempfile.gettempdir(), safe_name + "_InstaBrief.docx")
     doc.save(filepath)
     return filepath
