@@ -34,6 +34,35 @@ def _add_bottom_border(paragraph, color="2E86C1", width="4"):
     pPr.append(pBdr)
 
 
+def _add_hyperlink(paragraph, text, url, color=BODY_COLOR, size=Pt(10.5), bold=False):
+    part = paragraph.part
+    r_id = part.relate_to(url, "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink", is_external=True)
+    hyperlink = OxmlElement("w:hyperlink")
+    hyperlink.set(qn("r:id"), r_id)
+    new_run = OxmlElement("w:r")
+    rPr = OxmlElement("w:rPr")
+    u = OxmlElement("w:u")
+    u.set(qn("w:val"), "single")
+    rPr.append(u)
+    c = OxmlElement("w:color")
+    c.set(qn("w:val"), "2E86C1")
+    rPr.append(c)
+    sz = OxmlElement("w:sz")
+    sz.set(qn("w:val"), str(int(size.pt * 2)))
+    rPr.append(sz)
+    if bold:
+        b = OxmlElement("w:b")
+        rPr.append(b)
+    rFonts = OxmlElement("w:rFonts")
+    rFonts.set(qn("w:ascii"), "Calibri")
+    rFonts.set(qn("w:hAnsi"), "Calibri")
+    rPr.append(rFonts)
+    new_run.append(rPr)
+    new_run.text = text
+    hyperlink.append(new_run)
+    paragraph._p.append(hyperlink)
+
+
 def _add_section_header(doc, text):
     p = doc.add_paragraph()
     run = p.add_run(text)
@@ -143,8 +172,13 @@ def build_docx(data):
         _add_section_header(doc, "Meeting Attendees")
         for person in attendees:
             p = doc.add_paragraph()
-            run = p.add_run(person.get("name", ""))
-            _set_font(run, size=Pt(12), color=NAVY, bold=True)
+            name = person.get("name", "")
+            linkedin = person.get("linkedin_url", "")
+            if linkedin:
+                _add_hyperlink(p, name, linkedin, NAVY, Pt(12), bold=True)
+            else:
+                run = p.add_run(name)
+                _set_font(run, size=Pt(12), color=NAVY, bold=True)
             p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(2)
 
