@@ -29,9 +29,9 @@ def _attendee_prompt(text):
                 "elements": [
                     {
                         "type": "button",
-                        "text": {"type": "plain_text", "text": "Skip - no attendee info"},
-                        "value": "skip",
-                        "action_id": "skip_attendees",
+                        "text": {"type": "plain_text", "text": "Let's go"},
+                        "value": "go",
+                        "action_id": "lets_go",
                     }
                 ]
             }
@@ -118,7 +118,7 @@ def _handle_company_selected(channel, company, client, logger):
     if not cal_matches:
         state["step"] = "attendees"
         state["external_attendees"] = []
-        msg = _attendee_prompt("No upcoming meetings found for *" + company["name"] + "*.\n\nPaste attendee info (names, titles, LinkedIn URLs -- one per line), or click Skip.")
+        msg = _attendee_prompt("No upcoming meetings found for *" + company["name"] + "*.\n\nPaste attendee info (names, titles, LinkedIn URLs -- one per line), or click *Let's go*.")
         client.chat_postMessage(channel=channel, **msg)
         return
 
@@ -182,16 +182,8 @@ def handle_event_pick(ack, action, body, client, logger):
     event = state["cal_matches"][idx]
     state["external_attendees"] = event["external_attendees"]
 
-    attendee_names = [a["name"] + " (" + a["email"] + ")" for a in event["external_attendees"]]
-    if attendee_names:
-        msg = _attendee_prompt(":busts_in_silhouette: Found " + str(len(attendee_names)) + " external attendees:\n" + "\n".join(["  " + n for n in attendee_names]) + "\n\nWant to add more info (titles, LinkedIn URLs)? Paste below, or click Skip to proceed with what we have.")
-        state["step"] = "extra_attendee_info"
-        client.chat_postMessage(channel=channel, **msg)
-    else:
-        state["step"] = "attendees"
-        state["external_attendees"] = []
-        msg = _attendee_prompt("No external attendees found on this event.\n\nPaste attendee info (names, titles, LinkedIn URLs -- one per line), or click Skip.")
-        client.chat_postMessage(channel=channel, **msg)
+    # Go straight to generation
+    _start_generation(channel, state, "", client, logger)
 
 
 @app.action("event_none")
@@ -206,12 +198,12 @@ def handle_event_none(ack, body, client, logger):
 
     state["external_attendees"] = []
     state["step"] = "attendees"
-    msg = _attendee_prompt("No problem. Paste attendee info (names, titles, LinkedIn URLs -- one per line), or click Skip.")
+    msg = _attendee_prompt("No problem. Paste attendee info (names, titles, LinkedIn URLs -- one per line), or click *Let's go*.")
     client.chat_postMessage(channel=channel, **msg)
 
 
-@app.action("skip_attendees")
-def handle_skip(ack, body, client, logger):
+@app.action("lets_go")
+def handle_lets_go(ack, body, client, logger):
     ack()
     channel = body["channel"]["id"]
 
@@ -237,14 +229,8 @@ def handle_message(message, client, logger):
 
     step = state.get("step")
 
-    if step == "extra_attendee_info":
-        if text.lower() == "go" or text.lower() == "skip":
-            _start_generation(channel, state, "", client, logger)
-        else:
-            _start_generation(channel, state, text, client, logger)
-
-    elif step == "attendees":
-        if text.lower() == "skip":
+    if step == "attendees":
+        if text.lower() == "skip" or text.lower() == "go":
             _start_generation(channel, state, "", client, logger)
         else:
             state["external_attendees"] = []
