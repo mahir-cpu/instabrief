@@ -101,7 +101,7 @@ def _add_body_italic(doc, text):
 
 def _add_bullet(doc, text):
     p = doc.add_paragraph()
-    run = p.add_run("\u00B7  " + text)
+    run = p.add_run("\u2022  " + text)
     _set_font(run)
     p.paragraph_format.left_indent = Inches(0.25)
     p.paragraph_format.space_after = Pt(4)
@@ -110,7 +110,7 @@ def _add_bullet(doc, text):
 
 def _add_bold_bullet(doc, title, description):
     p = doc.add_paragraph()
-    bold_run = p.add_run("\u00B7  " + title + ": ")
+    bold_run = p.add_run("\u2022  " + title + ": ")
     _set_font(bold_run, bold=True)
     desc_run = p.add_run(description)
     _set_font(desc_run)
@@ -121,7 +121,7 @@ def _add_bold_bullet(doc, title, description):
 
 def _add_sub_bullet(doc, label, text):
     p = doc.add_paragraph()
-    bold_run = p.add_run("\u00B7  " + label + " ")
+    bold_run = p.add_run("\u2022  " + label + " ")
     _set_font(bold_run, bold=True)
     text_run = p.add_run(text)
     _set_font(text_run)
@@ -167,6 +167,7 @@ def build_docx(data):
     if ctx:
         _add_body_italic(doc, ctx)
 
+    # Meeting Attendees
     attendees = data.get("meeting_attendees", [])
     if attendees:
         _add_section_header(doc, "Meeting Attendees")
@@ -174,23 +175,61 @@ def build_docx(data):
             p = doc.add_paragraph()
             name = person.get("name", "")
             linkedin = person.get("linkedin_url", "")
+            position = person.get("current_position", "")
+
             if linkedin:
                 _add_hyperlink(p, name, linkedin, NAVY, Pt(12), bold=True)
             else:
                 run = p.add_run(name)
                 _set_font(run, size=Pt(12), color=NAVY, bold=True)
+            if position:
+                run = p.add_run(" -- " + position)
+                _set_font(run, size=Pt(10.5), color=GRAY)
             p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(2)
 
-            if person.get("current_position"):
-                _add_sub_bullet(doc, "Current Position:", person["current_position"])
-            if person.get("education"):
-                _add_sub_bullet(doc, "Education:", person["education"])
             if person.get("career_history"):
                 _add_sub_bullet(doc, "Career History:", person["career_history"])
-            if person.get("awards"):
-                _add_sub_bullet(doc, "Awards:", person["awards"])
+            if person.get("education"):
+                _add_sub_bullet(doc, "Education:", person["education"])
+            if person.get("background"):
+                _add_sub_bullet(doc, "Background:", person["background"])
+            if person.get("past_call_context"):
+                _add_sub_bullet(doc, "From past calls:", person["past_call_context"])
 
+    # Relationship History as structured bullets
+    rel_history = data.get("relationship_history", [])
+    if rel_history:
+        _add_section_header(doc, "Relationship History")
+        for meeting in rel_history:
+            label = meeting.get("meeting_label", "")
+            p = doc.add_paragraph()
+            run = p.add_run(label)
+            _set_font(run, size=Pt(11), color=NAVY, bold=True)
+            p.paragraph_format.space_before = Pt(8)
+            p.paragraph_format.space_after = Pt(2)
+
+            if meeting.get("key_reveal"):
+                _add_bold_bullet(doc, "Key reveal", meeting["key_reveal"])
+            if meeting.get("outcome"):
+                _add_bold_bullet(doc, "Outcome", meeting["outcome"])
+            if meeting.get("next_step"):
+                _add_bold_bullet(doc, "Next step", meeting["next_step"])
+
+            if meeting.get("recap") and not meeting.get("key_reveal"):
+                _add_body(doc, meeting["recap"])
+
+    # Next Steps and Objections
+    next_steps = data.get("next_steps", "")
+    objections = data.get("objections", "")
+    if next_steps or objections:
+        _add_section_header(doc, "Next Steps & Objections")
+        if next_steps:
+            _add_labeled_line(doc, "Next Steps:", next_steps)
+        if objections:
+            _add_labeled_line(doc, "Key Objections:", objections)
+
+    # Client Profile
     _add_section_header(doc, "Client Profile")
     profile = data.get("client_profile", {})
     for label, key in [
@@ -202,15 +241,18 @@ def build_docx(data):
     ]:
         _add_labeled_line(doc, label, profile.get(key, "N/A"))
 
+    # Core Pain Points
     _add_section_header(doc, "Core Pain Points")
     for pp in data.get("core_pain_points", []):
         _add_bold_bullet(doc, pp["title"], pp["description"])
 
+    # Highest-Impact Solutions
     _add_section_header(doc, "Highest-Impact Agentic AI Solutions")
     for i, sol in enumerate(data.get("highest_impact_solutions", []), 1):
         _add_subsection_header(doc, str(i) + ". " + sol["name"])
         _add_body(doc, sol["description"])
 
+    # Best Approach
     _add_section_header(doc, "Best Approach")
     ba = data.get("best_approach", "")
     if isinstance(ba, list):
@@ -219,19 +261,5 @@ def build_docx(data):
     else:
         _add_body(doc, ba)
 
+    # Core Services
     _add_section_header(doc, "Core Services")
-    for svc in data.get("core_services", []):
-        _add_bullet(doc, svc)
-
-    _add_section_header(doc, "Relevant AI-Related Insight")
-    ai = data.get("ai_insight", "")
-    if isinstance(ai, list):
-        for para in ai:
-            _add_body(doc, para)
-    else:
-        _add_body(doc, ai)
-
-    safe_name = data.get("company_name", "Brief").replace(" ", "_").replace("/", "-")
-    filepath = os.path.join(tempfile.gettempdir(), safe_name + "_InstaBrief.docx")
-    doc.save(filepath)
-    return filepath

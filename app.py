@@ -9,6 +9,7 @@ from slack_bolt import App
 from slack_bolt.adapter.socket_mode import SocketModeHandler
 from company_search import search_companies
 from calendar_search import search_calendar_for_company
+from fathom_search import search_fathom_for_company, generate_relationship_context
 from brief_generator import generate_brief
 from docx_builder import build_docx
 
@@ -182,7 +183,6 @@ def handle_event_pick(ack, action, body, client, logger):
     event = state["cal_matches"][idx]
     state["external_attendees"] = event["external_attendees"]
 
-    # Go straight to generation
     _start_generation(channel, state, "", client, logger)
 
 
@@ -262,6 +262,45 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
     def do_work():
         try:
+            # Search Fathom for past meetings
+            client.chat_postMessage(
+                channel=channel,
+                text=":film_projector: Searching past meeting transcripts..."
+            )
+
+            attendee_emails = [a["email"] for a in external_attendees] if external_attendees else None
+            attendee_names = [a["name"] for a in external_attendees] if external_attendees else None
+
+            fathom_meetings = None
+            relationship_context = None
+            try:
+                fathom_meetings = search_fathom_for_company(company["name"], attendee_emails)
+                print("FATHOM RESULT:", fathom_meetings is not None, "count:",
+                      len(fathom_meetings) if fathom_meetings else 0)
+                if fathom_meetings:
+                    relationship_context = generate_relationship_context(
+                        company["name"],
+                        fathom_meetings,
+                        attendee_names,
+                    )
+                    print("RELATIONSHIP CONTEXT:", relationship_context is not None)
+                    print("KEYS:", list(relationship_context.keys()) if relationship_context else "None")
+                    client.chat_postMessage(
+                        channel=channel,
+                        text=":white_check_mark: Found " + str(len(fathom_meetings)) + " past meeting(s). Including context in brief."
+                    )
+                else:
+                    client.chat_postMessage(
+                        channel=channel,
+                        text=":information_source: No past meeting transcripts found. Generating brief without relationship history."
+                    )
+            except Exception as e:
+                logger.error("Fathom search failed: " + str(e))
+                client.chat_postMessage(
+                    channel=channel,
+                    text=":information_source: Could not search past transcripts. Generating brief without relationship history."
+                )
+
             time.sleep(60)
 
             brief_data = generate_brief(
@@ -269,6 +308,18 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                 parent_context=company.get("parent", ""),
                 attendees=attendee_text,
             )
+
+            # Inject relationship context into brief data
+            if relationship_context:
+                brief_data["relationship_history"] = relationship_context.get("relationship_history", [])
+                brief_data["next_steps"] = relationship_context.get("next_steps", "")
+                brief_data["objections"] = relationship_context.get("objections", "")
+                # Add per-attendee context
+                attendee_ctx = relationship_context.get("attendee_context", {})
+                for att in brief_data.get("meeting_attendees", []):
+                    name = att.get("name", "")
+                    if name in attendee_ctx:
+                        att["past_call_context"] = attendee_ctx[name]
 
             filepath = build_docx(brief_data)
 
