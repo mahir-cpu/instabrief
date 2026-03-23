@@ -4,6 +4,7 @@ from datetime import date
 from docx import Document
 from docx.shared import Pt, Inches, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
@@ -13,6 +14,7 @@ ACCENT = RGBColor(0x2E, 0x86, 0xC1)
 CHARCOAL = RGBColor(0x2D, 0x2D, 0x2D)
 BODY_COLOR = RGBColor(0x33, 0x33, 0x33)
 GRAY = RGBColor(0x66, 0x66, 0x66)
+WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
 
 def _set_font(run, name="Calibri", size=Pt(10.5), color=BODY_COLOR, bold=False):
@@ -63,6 +65,64 @@ def _add_hyperlink(paragraph, text, url, color=BODY_COLOR, size=Pt(10.5), bold=F
     paragraph._p.append(hyperlink)
 
 
+def _set_cell_shading(cell, color_hex):
+    shading = OxmlElement("w:shd")
+    shading.set(qn("w:fill"), color_hex)
+    shading.set(qn("w:val"), "clear")
+    cell._tc.get_or_add_tcPr().append(shading)
+
+
+def _set_cell_borders(cell, color="D0D5DD"):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcBorders = OxmlElement("w:tcBorders")
+    for edge in ["top", "left", "bottom", "right"]:
+        el = OxmlElement("w:" + edge)
+        el.set(qn("w:val"), "single")
+        el.set(qn("w:sz"), "4")
+        el.set(qn("w:space"), "0")
+        el.set(qn("w:color"), color)
+        tcBorders.append(el)
+    tcPr.append(tcBorders)
+
+
+def _set_cell_width(cell, inches):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    tcW = OxmlElement("w:tcW")
+    tcW.set(qn("w:w"), str(int(inches * 1440)))
+    tcW.set(qn("w:type"), "dxa")
+    tcPr.append(tcW)
+
+
+def _set_cell_valign_top(cell):
+    tc = cell._tc
+    tcPr = tc.get_or_add_tcPr()
+    vAlign = OxmlElement("w:vAlign")
+    vAlign.set(qn("w:val"), "top")
+    tcPr.append(vAlign)
+
+
+def _cell_add_text(cell, text, size=Pt(9), color=BODY_COLOR, bold=False):
+    p = cell.paragraphs[0] if cell.paragraphs and cell.paragraphs[0].text == "" else cell.add_paragraph()
+    run = p.add_run(text)
+    _set_font(run, size=size, color=color, bold=bold)
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.line_spacing = 1.15
+    return p
+
+
+def _cell_add_bullet(cell, text, size=Pt(9), color=BODY_COLOR):
+    p = cell.add_paragraph()
+    run = p.add_run("\u2022 " + text)
+    _set_font(run, size=size, color=color)
+    p.paragraph_format.space_before = Pt(1)
+    p.paragraph_format.space_after = Pt(1)
+    p.paragraph_format.line_spacing = 1.15
+    return p
+
+
 def _add_section_header(doc, text):
     p = doc.add_paragraph()
     run = p.add_run(text)
@@ -70,6 +130,7 @@ def _add_section_header(doc, text):
     p.paragraph_format.space_before = Pt(14)
     p.paragraph_format.space_after = Pt(4)
     _add_bottom_border(p)
+    return p
 
 
 def _add_subsection_header(doc, text):
@@ -78,6 +139,7 @@ def _add_subsection_header(doc, text):
     _set_font(run, size=Pt(13), color=CHARCOAL, bold=True)
     p.paragraph_format.space_before = Pt(8)
     p.paragraph_format.space_after = Pt(2)
+    return p
 
 
 def _add_body(doc, text, justify=True):
@@ -88,6 +150,7 @@ def _add_body(doc, text, justify=True):
     p.paragraph_format.line_spacing = 1.15
     if justify:
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    return p
 
 
 def _add_body_italic(doc, text):
@@ -97,6 +160,7 @@ def _add_body_italic(doc, text):
     run.italic = True
     p.paragraph_format.space_after = Pt(6)
     p.paragraph_format.line_spacing = 1.15
+    return p
 
 
 def _add_bullet(doc, text):
@@ -106,6 +170,7 @@ def _add_bullet(doc, text):
     p.paragraph_format.left_indent = Inches(0.25)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
+    return p
 
 
 def _add_bold_bullet(doc, title, description):
@@ -117,6 +182,7 @@ def _add_bold_bullet(doc, title, description):
     p.paragraph_format.left_indent = Inches(0.25)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
+    return p
 
 
 def _add_sub_bullet(doc, label, text):
@@ -128,6 +194,7 @@ def _add_sub_bullet(doc, label, text):
     p.paragraph_format.left_indent = Inches(0.5)
     p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.15
+    return p
 
 
 def _add_labeled_line(doc, label, text):
@@ -138,6 +205,76 @@ def _add_labeled_line(doc, label, text):
     _set_font(text_run)
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
+    return p
+
+
+def _add_relationship_table(doc, rel_history):
+    table = doc.add_table(rows=1, cols=4)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+
+    headers = ["Meeting", "Key highlights", "Outcome", "Next steps"]
+    widths = [1.5, 2.2, 1.7, 1.6]
+
+    header_cells = table.rows[0].cells
+    for i, (cell, header, width) in enumerate(zip(header_cells, headers, widths)):
+        _set_cell_width(cell, width)
+        _set_cell_shading(cell, "1B2A4A")
+        _set_cell_borders(cell, "1B2A4A")
+        _set_cell_valign_top(cell)
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run(header)
+        _set_font(run, size=Pt(9), color=WHITE, bold=True)
+
+    for idx, meeting in enumerate(rel_history):
+        row = table.add_row()
+        cells = row.cells
+        bg = "F5F7FA" if idx % 2 == 0 else "FFFFFF"
+
+        for i, cell in enumerate(cells):
+            _set_cell_width(cell, widths[i])
+            _set_cell_shading(cell, bg)
+            _set_cell_borders(cell)
+            _set_cell_valign_top(cell)
+
+        # Meeting name + date
+        label = meeting.get("meeting_label", "")
+        meeting_date = meeting.get("meeting_date", "")
+        p = cells[0].paragraphs[0]
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(2)
+        run = p.add_run(label)
+        _set_font(run, size=Pt(9), color=NAVY, bold=True)
+        if meeting_date:
+            p2 = cells[0].add_paragraph()
+            run2 = p2.add_run(meeting_date)
+            _set_font(run2, size=Pt(8), color=GRAY)
+            p2.paragraph_format.space_before = Pt(0)
+            p2.paragraph_format.space_after = Pt(2)
+
+        # Key highlights — use first paragraph for first bullet to avoid blank line
+        highlights = meeting.get("key_highlights", [])
+        if highlights:
+            p = cells[1].paragraphs[0]
+            run = p.add_run("\u2022 " + highlights[0])
+            _set_font(run, size=Pt(8.5), color=BODY_COLOR)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(1)
+            p.paragraph_format.line_spacing = 1.15
+            for h in highlights[1:]:
+                _cell_add_bullet(cells[1], h, size=Pt(8.5), color=BODY_COLOR)
+        else:
+            _cell_add_text(cells[1], "N/A", size=Pt(8.5))
+
+        # Outcome
+        outcome = meeting.get("outcome", "")
+        _cell_add_text(cells[2], outcome, size=Pt(8.5))
+
+        # Next step
+        next_step = meeting.get("next_step", "")
+        _cell_add_text(cells[3], next_step, size=Pt(8.5))
 
 
 def build_docx(data):
@@ -197,27 +334,11 @@ def build_docx(data):
             if person.get("past_call_context"):
                 _add_sub_bullet(doc, "From past calls:", person["past_call_context"])
 
-    # Relationship History as structured bullets
+    # Relationship History as table
     rel_history = data.get("relationship_history", [])
     if rel_history:
         _add_section_header(doc, "Relationship History")
-        for meeting in rel_history:
-            label = meeting.get("meeting_label", "")
-            p = doc.add_paragraph()
-            run = p.add_run(label)
-            _set_font(run, size=Pt(11), color=NAVY, bold=True)
-            p.paragraph_format.space_before = Pt(8)
-            p.paragraph_format.space_after = Pt(2)
-
-            if meeting.get("key_reveal"):
-                _add_bold_bullet(doc, "Key reveal", meeting["key_reveal"])
-            if meeting.get("outcome"):
-                _add_bold_bullet(doc, "Outcome", meeting["outcome"])
-            if meeting.get("next_step"):
-                _add_bold_bullet(doc, "Next step", meeting["next_step"])
-
-            if meeting.get("recap") and not meeting.get("key_reveal"):
-                _add_body(doc, meeting["recap"])
+        _add_relationship_table(doc, rel_history)
 
     # Next Steps and Objections
     next_steps = data.get("next_steps", "")
@@ -263,3 +384,20 @@ def build_docx(data):
 
     # Core Services
     _add_section_header(doc, "Core Services")
+    for svc in data.get("core_services", []):
+        _add_bullet(doc, svc)
+
+    # AI Insight
+    _add_section_header(doc, "Relevant AI-Related Insight")
+    ai = data.get("ai_insight", "")
+    if isinstance(ai, list):
+        for para in ai:
+            _add_body(doc, para)
+    else:
+        _add_body(doc, ai)
+
+    # Save
+    safe_name = data.get("company_name", "Brief").replace(" ", "_").replace("/", "-")
+    filepath = os.path.join(tempfile.gettempdir(), safe_name + "_InstaBrief.docx")
+    doc.save(filepath)
+    return filepath
