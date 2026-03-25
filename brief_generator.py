@@ -1,4 +1,5 @@
 import json
+import time
 import anthropic
 from dotenv import load_dotenv
 load_dotenv()
@@ -88,14 +89,34 @@ def generate_brief(company_name, parent_context="", attendees=""):
 
     user_message = "Research the following company and produce the complete brief as JSON.\n\nCompany: " + company_name + "\nParent/Owner/Context: " + (parent_context or "(none - research this)") + attendee_section + "\n\nDo thorough web research. Then return the JSON object as specified. ONLY valid JSON, nothing else."
 
-    response = client.messages.create(
-        model="claude-opus-4-6",
-        max_tokens=16000,
-        thinking={"type": "adaptive"},
-        system=SYSTEM_PROMPT,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{"role": "user", "content": user_message}],
-    )
+    for attempt in range(4):
+        try:
+            print("Opus brief generation attempt " + str(attempt + 1) + " for " + company_name + "...")
+            response = client.messages.create(
+                model="claude-opus-4-6",
+                max_tokens=16000,
+                thinking={"type": "adaptive"},
+                system=SYSTEM_PROMPT,
+                tools=[{"type": "web_search_20250305", "name": "web_search"}],
+                messages=[{"role": "user", "content": user_message}],
+            )
+            break
+        except Exception as e:
+            error_str = str(e).lower()
+            if "overloaded" in error_str or "529" in error_str:
+                wait = 30 * (attempt + 1)
+                print("Opus overloaded (attempt " + str(attempt + 1) + "/4), retrying in " + str(wait) + "s...")
+                time.sleep(wait)
+                if attempt == 3:
+                    raise
+            elif "rate" in error_str and "limit" in error_str:
+                wait = 60
+                print("Rate limited (attempt " + str(attempt + 1) + "/4), waiting " + str(wait) + "s...")
+                time.sleep(wait)
+                if attempt == 3:
+                    raise
+            else:
+                raise
 
     text = ""
     for block in response.content:

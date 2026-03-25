@@ -257,59 +257,97 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
     client.chat_postMessage(
         channel=channel,
-        text=":white_check_mark: Generating brief for *" + company["name"] + "*...\nThis takes 3-4 minutes. I'll send the doc when it's ready."
+        text=":white_check_mark: Generating brief for *" + company["name"] + "*...\nThis takes a couple minutes. I'll send the doc when it's ready."
     )
 
     def do_work():
         try:
-            # Search Fathom for past meetings
-            client.chat_postMessage(
-                channel=channel,
-                text=":film_projector: Searching past meeting transcripts..."
-            )
-
+            # Run Fathom search and Opus brief generation in parallel
             attendee_emails = [a["email"] for a in external_attendees] if external_attendees else None
             attendee_names = [a["name"] for a in external_attendees] if external_attendees else None
 
-            fathom_meetings = None
-            relationship_context = None
-            try:
-                fathom_meetings = search_fathom_for_company(company["name"], attendee_emails)
-                print("FATHOM RESULT:", fathom_meetings is not None, "count:",
-                      len(fathom_meetings) if fathom_meetings else 0)
-                if fathom_meetings:
-                    relationship_context = generate_relationship_context(
-                        company["name"],
-                        fathom_meetings,
-                        attendee_names,
-                    )
-                    print("RELATIONSHIP CONTEXT:", relationship_context is not None)
-                    print("KEYS:", list(relationship_context.keys()) if relationship_context else "None")
+            # Shared results from threads
+            results = {
+                "fathom_meetings": None,
+                "relationship_context": None,
+                "brief_data": None,
+                "fathom_error": None,
+                "brief_error": None,
+            }
+
+            # ── Thread 1: Fathom search + relationship context (Sonnet) ──
+            def fathom_work():
+                try:
                     client.chat_postMessage(
                         channel=channel,
-                        text=":white_check_mark: Found " + str(len(fathom_meetings)) + " past meeting(s). Including context in brief."
+                        text=":film_projector: Searching past meeting transcripts..."
                     )
-                else:
+                    fathom_meetings = search_fathom_for_company(company["name"], attendee_emails)
+                    print("FATHOM RESULT:", fathom_meetings is not None, "count:",
+                          len(fathom_meetings) if fathom_meetings else 0)
+
+                    if fathom_meetings:
+                        results["fathom_meetings"] = fathom_meetings
+                        relationship_context = generate_relationship_context(
+                            company["name"],
+                            fathom_meetings,
+                            attendee_names,
+                        )
+                        results["relationship_context"] = relationship_context
+                        print("RELATIONSHIP CONTEXT:", relationship_context is not None)
+                        client.chat_postMessage(
+                            channel=channel,
+                            text=":white_check_mark: Found " + str(len(fathom_meetings)) + " past meeting(s). Including context in brief."
+                        )
+                    else:
+                        client.chat_postMessage(
+                            channel=channel,
+                            text=":information_source: No past meeting transcripts found."
+                        )
+                except Exception as e:
+                    results["fathom_error"] = str(e)
+                    print("Fathom thread error: " + str(e))
                     client.chat_postMessage(
                         channel=channel,
-                        text=":information_source: No past meeting transcripts found. Generating brief without relationship history."
+                        text=":information_source: Could not search past transcripts."
                     )
-            except Exception as e:
-                logger.error("Fathom search failed: " + str(e))
-                client.chat_postMessage(
-                    channel=channel,
-                    text=":information_source: Could not search past transcripts. Generating brief without relationship history."
-                )
 
-            time.sleep(60)
+            # ── Thread 2: Opus brief generation ──
+            def brief_work():
+                try:
+                    client.chat_postMessage(
+                        channel=channel,
+                        text=":brain: Researching company with AI (this is the slow part)..."
+                    )
+                    brief_data = generate_brief(
+                        company_name=company["name"],
+                        parent_context=company.get("parent", ""),
+                        attendees=attendee_text,
+                    )
+                    results["brief_data"] = brief_data
+                    print("BRIEF GENERATION: complete")
+                except Exception as e:
+                    results["brief_error"] = str(e)
+                    print("Brief thread error: " + str(e))
 
-            brief_data = generate_brief(
-                company_name=company["name"],
-                parent_context=company.get("parent", ""),
-                attendees=attendee_text,
-            )
+            # Start both threads
+            t_fathom = threading.Thread(target=fathom_work)
+            t_brief = threading.Thread(target=brief_work)
+            t_fathom.start()
+            t_brief.start()
+
+            # Wait for both to finish
+            t_fathom.join()
+            t_brief.join()
+
+            # Check for brief generation failure
+            if results["brief_data"] is None:
+                raise Exception("Brief generation failed: " + (results["brief_error"] or "Unknown error"))
+
+            brief_data = results["brief_data"]
 
             # Inject relationship context into brief data
+            relationship_context = results["relationship_context"]
             if relationship_context:
                 brief_data["relationship_history"] = relationship_context.get("relationship_history", [])
                 brief_data["next_steps"] = relationship_context.get("next_steps", "")
@@ -320,6 +358,9 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                     name = att.get("name", "")
                     if name in attendee_ctx:
                         att["past_call_context"] = attendee_ctx[name]
+
+            print("BRIEF HAS RELATIONSHIP HISTORY:", "relationship_history" in brief_data,
+                  len(brief_data.get("relationship_history", [])))
 
             filepath = build_docx(brief_data)
 
