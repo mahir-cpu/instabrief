@@ -8,7 +8,7 @@ load_dotenv()
 
 FATHOM_API_KEY = os.environ.get("FATHOM_API_KEY", "")
 FATHOM_BASE_URL = "https://api.fathom.ai/external/v1"
-ai_client = anthropic.Anthropic()
+ai_client = anthropic.Anthropic(timeout=120)
 
 
 def _fathom_get(endpoint, params=None, retries=3):

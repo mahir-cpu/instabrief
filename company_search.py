@@ -1,7 +1,7 @@
 import json
 import anthropic
 
-client = anthropic.Anthropic()
+client = anthropic.Anthropic(timeout=120)
 
 
 def search_companies(query: str) -> list[dict]:

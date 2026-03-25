@@ -4,7 +4,7 @@ import anthropic
 from dotenv import load_dotenv
 load_dotenv()
 
-client = anthropic.Anthropic()
+client = anthropic.Anthropic(timeout=300)
 
 SYSTEM_PROMPT = """You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief, an agentic AI solutions company.
 
