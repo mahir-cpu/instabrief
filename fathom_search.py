@@ -87,12 +87,48 @@ def _get_summary(recording_id):
         return ""
 
 
+def _claude_filter_meetings(company_name, matched_meetings):
+    if len(matched_meetings) <= 1:
+        return matched_meetings
+
+    titles_list = ""
+    for i, m in enumerate(matched_meetings):
+        titles_list += str(i) + ": " + m["title"] + " (" + m["date"] + ")\n"
+
+    try:
+        filter_response = ai_client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=256,
+            messages=[{
+                "role": "user",
+                "content": "Which of these meetings are specifically about " + company_name + "? A meeting is relevant ONLY if it is a meeting WITH " + company_name + " or directly about " + company_name + ". Meetings that happen to have a " + company_name + " employee attending but are about a different company are NOT relevant. Return ONLY a JSON array of index numbers.\n\n" + titles_list
+            }],
+        )
+        filter_text = filter_response.content[0].text.strip()
+        if filter_text.startswith("```"):
+            filter_text = filter_text.split("\n", 1)[1] if "\n" in filter_text else filter_text[3:]
+        if filter_text.endswith("```"):
+            filter_text = filter_text[:-3]
+        indices = json.loads(filter_text.strip())
+        if isinstance(indices, list) and len(indices) > 0:
+            filtered = [matched_meetings[i] for i in indices if i < len(matched_meetings)]
+            print("Claude filtered " + str(len(matched_meetings)) + " meetings down to " + str(len(filtered)) + " relevant ones")
+            return filtered
+        else:
+            print("Claude found no relevant meetings")
+            return []
+    except Exception as e:
+        print("Claude filter failed, keeping all: " + str(e))
+        return matched_meetings
+
+
 def search_fathom_for_company(company_name, attendee_emails=None):
     if not FATHOM_API_KEY:
         return None
 
     matched_meetings = []
 
+    # Strategy 1: Domain filter
     if attendee_emails:
         domains = list(set([
             e.split("@")[1] for e in attendee_emails
@@ -123,6 +159,11 @@ def search_fathom_for_company(company_name, attendee_emails=None):
                 if not cursor:
                     break
 
+    # Claude filter: remove irrelevant meetings from domain results
+    if matched_meetings:
+        matched_meetings = _claude_filter_meetings(company_name, matched_meetings)
+
+    # Strategy 2: Paginate and keyword match on titles
     if not matched_meetings:
         company_lower = company_name.lower()
         company_words = [w for w in company_lower.split() if len(w) > 2]
@@ -141,7 +182,7 @@ def search_fathom_for_company(company_name, attendee_emails=None):
                 break
             for m in items:
                 title = (m.get("title", "") or m.get("meeting_title", "")).lower()
-                if any(word in title for word in company_words):
+                if all(word in title for word in company_words):
                     matched_meetings.append({
                         "title": m.get("title", "") or m.get("meeting_title", ""),
                         "date": m.get("created_at", "")[:10],
@@ -153,11 +194,16 @@ def search_fathom_for_company(company_name, attendee_emails=None):
             if not cursor:
                 break
 
+        # Claude filter keyword results too
+        if matched_meetings:
+            matched_meetings = _claude_filter_meetings(company_name, matched_meetings)
+
     if not matched_meetings:
         return None
 
     matched_meetings.sort(key=lambda x: x.get("date", ""))
 
+    # Fetch transcripts and summaries only for matches, with delays
     for m in matched_meetings:
         rid = m.get("recording_id")
         if rid:

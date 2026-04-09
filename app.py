@@ -317,7 +317,7 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                 try:
                     client.chat_postMessage(
                         channel=channel,
-                        text=":brain: Researching company with AI (this is the slow part)..."
+                        text=":brain: Researching company..."
                     )
                     brief_data = generate_brief(
                         company_name=company["name"],
