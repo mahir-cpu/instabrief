@@ -25,7 +25,6 @@ STYLE RULES:
 - Bullet points should have a bold title followed by a colon and a description.
 - Highest-Impact solutions should each have a bold name, then a paragraph describing what it does and why it matters to THIS company specifically.
 - Best Approach should be ONE paragraph.
-- Core Services: 3-4 concise bullets only.
 - AI Insight: Concise, direct, to the point. State what tech they run today (name platforms), what AI they lack, and why the window is open. No buildup, no transitions, no filler.
 
 CRITICAL: Return ONLY a valid JSON object. No markdown, no preamble, no backticks.
@@ -65,9 +64,6 @@ The JSON must have EXACTLY these top-level keys:
     }
   ],
   "best_approach": "One paragraph combining: the inflection point framing, how to position the solution, what language to use, what existing investments to build on, and what NOT to lead with.",
-  "core_services": [
-    "Concise service description"
-  ],
   "ai_insight": "Concise, direct, to the point. State what tech they run today (name platforms), what AI they lack, and why the window is open. Every sentence is a fact or an insight."
 }
 
@@ -75,7 +71,6 @@ IMPORTANT COUNTS:
 - meeting_attendees: include all provided attendees (0 if none)
 - core_pain_points: exactly 4
 - highest_impact_solutions: exactly 4
-- core_services: 3-4
 - ai_insight: 1 concise paragraph
 - best_approach: 1 paragraph
 

@@ -15,6 +15,16 @@ CHARCOAL = RGBColor(0x2D, 0x2D, 0x2D)
 BODY_COLOR = RGBColor(0x33, 0x33, 0x33)
 GRAY = RGBColor(0x66, 0x66, 0x66)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
+ROW_BG = "E8EDF2"
+
+# Total usable width with 2cm margins on A4 = ~6.69 inches
+TOTAL_WIDTH = 6.69
+
+
+def _label_width(labels):
+    longest = max(len(label) for label in labels) if labels else 10
+    width = longest * 0.09 + 0.3
+    return min(max(width, 1.0), 2.5)
 
 
 def _set_font(run, name="Calibri", size=Pt(10.5), color=BODY_COLOR, bold=False):
@@ -133,15 +143,6 @@ def _add_section_header(doc, text):
     return p
 
 
-def _add_subsection_header(doc, text):
-    p = doc.add_paragraph()
-    run = p.add_run(text)
-    _set_font(run, size=Pt(13), color=CHARCOAL, bold=True)
-    p.paragraph_format.space_before = Pt(8)
-    p.paragraph_format.space_after = Pt(2)
-    return p
-
-
 def _add_body(doc, text, justify=True):
     p = doc.add_paragraph()
     run = p.add_run(text)
@@ -163,40 +164,6 @@ def _add_body_italic(doc, text):
     return p
 
 
-def _add_bullet(doc, text):
-    p = doc.add_paragraph()
-    run = p.add_run("\u2022  " + text)
-    _set_font(run)
-    p.paragraph_format.left_indent = Inches(0.25)
-    p.paragraph_format.space_after = Pt(4)
-    p.paragraph_format.line_spacing = 1.15
-    return p
-
-
-def _add_bold_bullet(doc, title, description):
-    p = doc.add_paragraph()
-    bold_run = p.add_run("\u2022  " + title + ": ")
-    _set_font(bold_run, bold=True)
-    desc_run = p.add_run(description)
-    _set_font(desc_run)
-    p.paragraph_format.left_indent = Inches(0.25)
-    p.paragraph_format.space_after = Pt(4)
-    p.paragraph_format.line_spacing = 1.15
-    return p
-
-
-def _add_sub_bullet(doc, label, text):
-    p = doc.add_paragraph()
-    bold_run = p.add_run("\u2022  " + label + " ")
-    _set_font(bold_run, bold=True)
-    text_run = p.add_run(text)
-    _set_font(text_run)
-    p.paragraph_format.left_indent = Inches(0.5)
-    p.paragraph_format.space_after = Pt(2)
-    p.paragraph_format.line_spacing = 1.15
-    return p
-
-
 def _add_labeled_line(doc, label, text):
     p = doc.add_paragraph()
     label_run = p.add_run(label + " ")
@@ -206,6 +173,111 @@ def _add_labeled_line(doc, label, text):
     p.paragraph_format.space_after = Pt(4)
     p.paragraph_format.line_spacing = 1.15
     return p
+
+
+def _add_two_col_table(doc, rows_data):
+    labels = [label for label, _ in rows_data]
+    left_w = _label_width(labels)
+    right_w = TOTAL_WIDTH - left_w
+
+    table = doc.add_table(rows=0, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+
+    for idx, (label, value) in enumerate(rows_data):
+        row = table.add_row()
+        cells = row.cells
+        bg = ROW_BG if idx % 2 == 0 else "FFFFFF"
+
+        _set_cell_width(cells[0], left_w)
+        _set_cell_shading(cells[0], bg)
+        _set_cell_borders(cells[0])
+        _set_cell_valign_top(cells[0])
+        p = cells[0].paragraphs[0]
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
+        run = p.add_run(label)
+        _set_font(run, size=Pt(9.5), color=NAVY, bold=True)
+
+        _set_cell_width(cells[1], right_w)
+        _set_cell_shading(cells[1], bg)
+        _set_cell_borders(cells[1])
+        _set_cell_valign_top(cells[1])
+        p = cells[1].paragraphs[0]
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.line_spacing = 1.15
+        run = p.add_run(value)
+        _set_font(run, size=Pt(9.5))
+
+    return table
+
+
+def _add_attendee_table(doc, person):
+    name = person.get("name", "")
+    linkedin = person.get("linkedin_url", "")
+    position = person.get("current_position", "")
+
+    rows_data = [("Name", "")]
+    if person.get("career_history"):
+        rows_data.append(("Career History", person["career_history"]))
+    if person.get("education"):
+        rows_data.append(("Education", person["education"]))
+    if person.get("background"):
+        rows_data.append(("Background", person["background"]))
+    if person.get("past_call_context"):
+        rows_data.append(("From past calls", person["past_call_context"]))
+
+    labels = [label for label, _ in rows_data]
+    left_w = _label_width(labels)
+    right_w = TOTAL_WIDTH - left_w
+
+    table = doc.add_table(rows=0, cols=2)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+
+    for idx, (label, value) in enumerate(rows_data):
+        row = table.add_row()
+        cells = row.cells
+        bg = ROW_BG if idx % 2 == 0 else "FFFFFF"
+
+        _set_cell_width(cells[0], left_w)
+        _set_cell_shading(cells[0], bg)
+        _set_cell_borders(cells[0])
+        _set_cell_valign_top(cells[0])
+        p = cells[0].paragraphs[0]
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
+        run = p.add_run(label)
+        _set_font(run, size=Pt(9.5), color=NAVY, bold=True)
+
+        _set_cell_width(cells[1], right_w)
+        _set_cell_shading(cells[1], bg)
+        _set_cell_borders(cells[1])
+        _set_cell_valign_top(cells[1])
+        p = cells[1].paragraphs[0]
+        p.paragraph_format.space_before = Pt(3)
+        p.paragraph_format.space_after = Pt(3)
+        p.paragraph_format.line_spacing = 1.15
+
+        if label == "Name":
+            if linkedin:
+                _add_hyperlink(p, name, linkedin, NAVY, Pt(9.5), bold=True)
+            else:
+                run = p.add_run(name)
+                _set_font(run, size=Pt(9.5), color=NAVY, bold=True)
+            if position:
+                run = p.add_run(" -- " + position)
+                _set_font(run, size=Pt(9.5), color=GRAY)
+        else:
+            run = p.add_run(value)
+            _set_font(run, size=Pt(9.5))
+
+    spacer = doc.add_paragraph()
+    spacer.paragraph_format.space_before = Pt(0)
+    spacer.paragraph_format.space_after = Pt(4)
+
+    return table
 
 
 def _add_relationship_table(doc, rel_history):
@@ -231,7 +303,7 @@ def _add_relationship_table(doc, rel_history):
     for idx, meeting in enumerate(rel_history):
         row = table.add_row()
         cells = row.cells
-        bg = "F5F7FA" if idx % 2 == 0 else "FFFFFF"
+        bg = ROW_BG if idx % 2 == 0 else "FFFFFF"
 
         for i, cell in enumerate(cells):
             _set_cell_width(cell, widths[i])
@@ -239,7 +311,6 @@ def _add_relationship_table(doc, rel_history):
             _set_cell_borders(cell)
             _set_cell_valign_top(cell)
 
-        # Meeting name + date
         label = meeting.get("meeting_label", "")
         meeting_date = meeting.get("meeting_date", "")
         p = cells[0].paragraphs[0]
@@ -254,7 +325,6 @@ def _add_relationship_table(doc, rel_history):
             p2.paragraph_format.space_before = Pt(0)
             p2.paragraph_format.space_after = Pt(2)
 
-        # Key highlights — use first paragraph for first bullet to avoid blank line
         highlights = meeting.get("key_highlights", [])
         if highlights:
             p = cells[1].paragraphs[0]
@@ -268,11 +338,9 @@ def _add_relationship_table(doc, rel_history):
         else:
             _cell_add_text(cells[1], "N/A", size=Pt(8.5))
 
-        # Outcome
         outcome = meeting.get("outcome", "")
         _cell_add_text(cells[2], outcome, size=Pt(8.5))
 
-        # Next step
         next_step = meeting.get("next_step", "")
         _cell_add_text(cells[3], next_step, size=Pt(8.5))
 
@@ -309,30 +377,7 @@ def build_docx(data):
     if attendees:
         _add_section_header(doc, "Meeting Attendees")
         for person in attendees:
-            p = doc.add_paragraph()
-            name = person.get("name", "")
-            linkedin = person.get("linkedin_url", "")
-            position = person.get("current_position", "")
-
-            if linkedin:
-                _add_hyperlink(p, name, linkedin, NAVY, Pt(12), bold=True)
-            else:
-                run = p.add_run(name)
-                _set_font(run, size=Pt(12), color=NAVY, bold=True)
-            if position:
-                run = p.add_run(" -- " + position)
-                _set_font(run, size=Pt(10.5), color=GRAY)
-            p.paragraph_format.space_before = Pt(8)
-            p.paragraph_format.space_after = Pt(2)
-
-            if person.get("career_history"):
-                _add_sub_bullet(doc, "Career History:", person["career_history"])
-            if person.get("education"):
-                _add_sub_bullet(doc, "Education:", person["education"])
-            if person.get("background"):
-                _add_sub_bullet(doc, "Background:", person["background"])
-            if person.get("past_call_context"):
-                _add_sub_bullet(doc, "From past calls:", person["past_call_context"])
+            _add_attendee_table(doc, person)
 
     # Relationship History as table
     rel_history = data.get("relationship_history", [])
@@ -350,28 +395,33 @@ def build_docx(data):
         if objections:
             _add_labeled_line(doc, "Key Objections:", objections)
 
-    # Client Profile
+    # Client Profile as table
     _add_section_header(doc, "Client Profile")
     profile = data.get("client_profile", {})
-    for label, key in [
-        ("What they do:", "what_they_do"),
-        ("Markets served:", "markets_served"),
-        ("Revenue:", "revenue"),
-        ("Scale:", "scale"),
-        ("Recent growth / M&A context:", "recent_growth"),
-    ]:
-        _add_labeled_line(doc, label, profile.get(key, "N/A"))
+    profile_rows = [
+        ("What they do", profile.get("what_they_do", "N/A")),
+        ("Markets served", profile.get("markets_served", "N/A")),
+        ("Revenue", profile.get("revenue", "N/A")),
+        ("Scale", profile.get("scale", "N/A")),
+        ("Recent growth", profile.get("recent_growth", "N/A")),
+    ]
+    _add_two_col_table(doc, profile_rows)
 
-    # Core Pain Points
+    # Core Pain Points as table
     _add_section_header(doc, "Core Pain Points")
+    pain_rows = []
     for pp in data.get("core_pain_points", []):
-        _add_bold_bullet(doc, pp["title"], pp["description"])
+        pain_rows.append((pp.get("title", ""), pp.get("description", "")))
+    if pain_rows:
+        _add_two_col_table(doc, pain_rows)
 
-    # Highest-Impact Solutions
+    # Highest-Impact Solutions as table
     _add_section_header(doc, "Highest-Impact Agentic AI Solutions")
-    for i, sol in enumerate(data.get("highest_impact_solutions", []), 1):
-        _add_subsection_header(doc, str(i) + ". " + sol["name"])
-        _add_body(doc, sol["description"])
+    sol_rows = []
+    for sol in data.get("highest_impact_solutions", []):
+        sol_rows.append((sol.get("name", ""), sol.get("description", "")))
+    if sol_rows:
+        _add_two_col_table(doc, sol_rows)
 
     # Best Approach
     _add_section_header(doc, "Best Approach")
@@ -381,11 +431,6 @@ def build_docx(data):
             _add_body(doc, para)
     else:
         _add_body(doc, ba)
-
-    # Core Services
-    _add_section_header(doc, "Core Services")
-    for svc in data.get("core_services", []):
-        _add_bullet(doc, svc)
 
     # AI Insight
     _add_section_header(doc, "Relevant AI-Related Insight")
