@@ -11,12 +11,12 @@ FATHOM_BASE_URL = "https://api.fathom.ai/external/v1"
 ai_client = anthropic.Anthropic(timeout=120)
 
 
-def _fathom_get(endpoint, params=None, retries=3):
+def _fathom_get(endpoint, params=None, retries=5):
     headers = {"X-Api-Key": FATHOM_API_KEY}
     for attempt in range(retries):
         resp = requests.get(FATHOM_BASE_URL + endpoint, headers=headers, params=params or {})
         if resp.status_code == 429:
-            wait = 10 * (attempt + 1)
+            wait = 20 * (attempt + 1)
             print("Fathom rate limit hit, waiting " + str(wait) + "s...")
             _time.sleep(wait)
             continue
@@ -128,7 +128,6 @@ def search_fathom_for_company(company_name, attendee_emails=None):
 
     matched_meetings = []
 
-    # Strategy 1: Domain filter
     if attendee_emails:
         domains = list(set([
             e.split("@")[1] for e in attendee_emails
@@ -159,14 +158,16 @@ def search_fathom_for_company(company_name, attendee_emails=None):
                 if not cursor:
                     break
 
-    # Claude filter: remove irrelevant meetings from domain results
     if matched_meetings:
         matched_meetings = _claude_filter_meetings(company_name, matched_meetings)
 
-    # Strategy 2: Paginate and keyword match on titles
     if not matched_meetings:
         company_lower = company_name.lower()
-        company_words = [w for w in company_lower.split() if len(w) > 2]
+        skip_words = {"inc", "inc.", "llc", "ltd", "ltd.", "corp", "corp.", "co", "co.", "group", "the", "company", "limited", "solutions", "consulting"}
+        company_words = [w for w in company_lower.split() if len(w) > 2 and w not in skip_words]
+
+        if not company_words:
+            company_words = [company_lower.split()[0]] if company_lower.split() else []
 
         cursor = None
         for _ in range(100):
@@ -194,7 +195,6 @@ def search_fathom_for_company(company_name, attendee_emails=None):
             if not cursor:
                 break
 
-        # Claude filter keyword results too
         if matched_meetings:
             matched_meetings = _claude_filter_meetings(company_name, matched_meetings)
 
@@ -203,7 +203,6 @@ def search_fathom_for_company(company_name, attendee_emails=None):
 
     matched_meetings.sort(key=lambda x: x.get("date", ""))
 
-    # Fetch transcripts and summaries only for matches, with delays
     for m in matched_meetings:
         rid = m.get("recording_id")
         if rid:
@@ -230,16 +229,18 @@ def generate_relationship_context(company_name, matched_meetings, attendee_names
         if m.get("transcript"):
             meetings_context += "Transcript:\n" + str(m["transcript"]) + "\n"
 
+    most_recent = str(len(matched_meetings))
+
     attendee_hint = ""
     if attendee_names:
         attendee_hint = "\n\nKey attendees to look for context on: " + ", ".join(attendee_names)
 
     response = ai_client.messages.create(
         model="claude-sonnet-4-5-20250929",
-        max_tokens=4096,
+        max_tokens=8000,
         messages=[{
             "role": "user",
-            "content": "Based on these past meeting transcripts with " + company_name + ":" + meetings_context + attendee_hint + "\n\nGenerate the following as a JSON object. Number meetings starting from 1:\n\n{\n  \"relationship_history\": [\n    {\n      \"meeting_label\": \"Meeting 1: [short description]\",\n      \"meeting_date\": \"Mar 5, 2026\",\n      \"key_highlights\": [\n        \"First key highlight from this meeting -- 1 sentence, specific and actionable\",\n        \"Second key highlight from this meeting -- 1 sentence, specific and actionable\"\n      ],\n      \"outcome\": \"1 sentence: what was decided, agreed, or demonstrated.\",\n      \"next_step\": \"1 sentence: what was agreed as the next action coming out of this meeting.\"\n    }\n  ],\n  \"attendee_context\": {\n    \"Person Name\": \"1 sentence on how to approach them based on past calls\"\n  },\n  \"next_steps\": \"What they told us they need in the next call. Be specific.\",\n  \"objections\": \"Key objections or concerns raised that we should be ready for.\"\n}\n\nEach meeting MUST have exactly 2 key_highlights. Be concise but specific. Reference actual things said. Return ONLY valid JSON."
+            "content": "Based on these past meeting transcripts with " + company_name + ":" + meetings_context + attendee_hint + "\n\nGenerate the following as a JSON object. Number meetings starting from 1.\n\n{\n  \"relationship_history\": [\n    {\n      \"meeting_label\": \"Meeting 1: [short description]\",\n      \"meeting_date\": \"Mar 5, 2026\",\n      \"key_highlights\": [\n        \"Concise, declarative highlight. No filler.\",\n        \"Concise, declarative highlight. No filler.\"\n      ],\n      \"outcome\": \"1 sentence: what was decided, agreed, or demonstrated.\",\n      \"next_steps_list\": [\n        \"Owner: action item (done if completed by a later meeting)\",\n        \"Owner: action item\"\n      ]\n    }\n  ],\n  \"attendee_context\": {\n    \"Person Name\": \"1 sentence on how to approach them based on past calls\"\n  },\n  \"stated_pain_points\": [\n    {\n      \"pain_point\": \"The problem in their words\",\n      \"who_stated\": \"Who brought it up\",\n      \"meeting\": \"Which meeting\",\n      \"detail\": \"1-2 sentences of specific context -- numbers, systems, frustrations they mentioned. These must be things THEY said, not inferred.\"\n    }\n  ],\n  \"what_theyre_looking_for\": \"One paragraph describing what this company actually wants from us based on everything said across all meetings. Not what we think they need -- what THEY said they need. What problems did they bring to us? What outcomes did they describe wanting? What did they get excited about? If they described their ideal solution, capture that vision in their language. Include any constraints they mentioned -- budget, timeline, systems it needs to work with, internal approvals needed.\",\n  \"next_steps_detailed\": [\n    {\n      \"action\": \"Owner: what specifically needs to happen\",\n      \"owner\": \"InstaLILY or client name\",\n      \"context\": \"Which meeting and who requested it\",\n      \"deadline\": \"Any timeline mentioned, or No deadline discussed\"\n    }\n  ],\n  \"objections_detailed\": [\n    {\n      \"objection\": \"The specific concern in their words\",\n      \"raised_by\": \"Who said it\",\n      \"meeting\": \"Which meeting\",\n      \"type\": \"Technical / Commercial / Organizational / Competitive\",\n      \"severity\": \"Passing concern / Moderate pushback / Potential dealbreaker\",\n      \"status\": \"Addressed / Partially addressed / Still open\",\n      \"our_response\": \"How we responded, or Not yet addressed\",\n      \"prep_needed\": \"If still open, what should we prepare to address it next meeting\"\n    }\n  ],\n  \"best_approach_warm\": \"One paragraph grounded entirely in what happened in past meetings. Mirror the language THEY used to describe their problems. Lead with whichever solution or topic got the strongest positive reaction. Call out what to explicitly AVOID based on any pushback. Identify who is the champion and who is the skeptic and how to navigate that. End with what they said they need to see to move forward.\"\n}\n\nSTYLE RULES:\n- No filler words, no timestamps, no dialogue quotes\n- Clean, declarative language. Every word earns its place.\n- Focus on outcomes, clarity, and forward motion.\n\nKEY HIGHLIGHTS RULES:\n- Exactly 2 per meeting, concise, no filler\n- Focus on: key insights uncovered, decisions made, alignments reached, confirmed goals or timelines, blockers removed or areas clarified\n- Only things that moved the deal forward -- not generic summaries\n\nNEXT STEPS LIST RULES (per meeting):\n- 2-3 per meeting\n- Each must start with the owner: 'InstaLILY: action' or 'ClientName: action' or 'PersonName: action'\n- If a next step from an earlier meeting was completed by a later meeting, mark it (done)\n- Clean and declarative, no hedging\n\nNEXT STEPS DETAILED RULES:\n- 3-5 items total across all meetings\n- PRIORITIZE based on the most recent meeting (Meeting " + most_recent + "). Most recent meeting's next steps come first and carry the most weight. Earlier meetings' next steps only if still relevant and not superseded.\n- Each action must start with the owner\n- If completed, mark (done) and deprioritize\n- Focus on outcomes, clarity, and forward motion\n\nOBJECTIONS RULES:\n- Every meaningful objection, categorized by type\n- prep_needed is critical: if an objection is still open, clearly state what we should prepare for the next meeting\n\n- stated_pain_points: exactly 3, from their mouths, not inferred\n- Return ONLY valid JSON."
         }],
     )
 

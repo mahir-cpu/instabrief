@@ -46,19 +46,28 @@ def search_calendar_for_company(company_name):
     time_min = now.isoformat() + "Z"
     time_max = (now + datetime.timedelta(days=30)).isoformat() + "Z"
 
+    calendars = [
+        "sumo@instalily.ai",
+        "raghav@instalily.ai",
+    ]
+
     all_events = []
-    try:
-        events_result = service.events().list(
-            calendarId="sumo@instalily.ai",
-            timeMin=time_min,
-            timeMax=time_max,
-            maxResults=100,
-            singleEvents=True,
-            orderBy="startTime",
-        ).execute()
-        all_events = events_result.get("items", [])
-    except Exception:
-        pass
+    for cal_id in calendars:
+        try:
+            events_result = service.events().list(
+                calendarId=cal_id,
+                timeMin=time_min,
+                timeMax=time_max,
+                maxResults=100,
+                singleEvents=True,
+                orderBy="startTime",
+            ).execute()
+            all_events.extend(events_result.get("items", []))
+        except Exception:
+            pass
+
+    # Sort all events by start time
+    all_events.sort(key=lambda e: e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "")))
 
     if not all_events:
         return []

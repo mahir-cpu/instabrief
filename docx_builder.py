@@ -17,14 +17,7 @@ GRAY = RGBColor(0x66, 0x66, 0x66)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 ROW_BG = "E8EDF2"
 
-# Total usable width with 2cm margins on A4 = ~6.69 inches
 TOTAL_WIDTH = 6.69
-
-
-def _label_width(labels):
-    longest = max(len(label) for label in labels) if labels else 10
-    width = longest * 0.09 + 0.3
-    return min(max(width, 1.0), 2.5)
 
 
 def _set_font(run, name="Calibri", size=Pt(10.5), color=BODY_COLOR, bold=False):
@@ -133,6 +126,16 @@ def _cell_add_bullet(cell, text, size=Pt(9), color=BODY_COLOR):
     return p
 
 
+def _cell_add_bold_bullet(cell, text, size=Pt(9), color=BODY_COLOR):
+    p = cell.add_paragraph()
+    run = p.add_run("\u2022 " + text)
+    _set_font(run, size=size, color=color, bold=True)
+    p.paragraph_format.space_before = Pt(1)
+    p.paragraph_format.space_after = Pt(1)
+    p.paragraph_format.line_spacing = 1.15
+    return p
+
+
 def _add_section_header(doc, text):
     p = doc.add_paragraph()
     run = p.add_run(text)
@@ -175,14 +178,47 @@ def _add_labeled_line(doc, label, text):
     return p
 
 
+def _calc_left_width(labels):
+    longest = max(len(label) for label in labels) if labels else 10
+    if longest > 20:
+        longest = 20
+    width = longest * 0.075 + 0.15
+    return min(max(width, 0.9), 1.5)
+
+
+def _force_table_layout(table, col_widths):
+    tbl = table._tbl
+    tblPr = tbl.tblPr if tbl.tblPr is not None else OxmlElement("w:tblPr")
+    tblLayout = OxmlElement("w:tblLayout")
+    tblLayout.set(qn("w:type"), "fixed")
+    tblPr.append(tblLayout)
+    total = sum(col_widths)
+    tblW = OxmlElement("w:tblW")
+    tblW.set(qn("w:w"), str(int(total * 1440)))
+    tblW.set(qn("w:type"), "dxa")
+    tblPr.append(tblW)
+    tblGrid = tbl.tblGrid
+    if tblGrid is None:
+        tblGrid = OxmlElement("w:tblGrid")
+        tbl.insert(1, tblGrid)
+    else:
+        for child in list(tblGrid):
+            tblGrid.remove(child)
+    for w in col_widths:
+        gridCol = OxmlElement("w:gridCol")
+        gridCol.set(qn("w:w"), str(int(w * 1440)))
+        tblGrid.append(gridCol)
+
+
 def _add_two_col_table(doc, rows_data):
     labels = [label for label, _ in rows_data]
-    left_w = _label_width(labels)
+    left_w = _calc_left_width(labels)
     right_w = TOTAL_WIDTH - left_w
 
     table = doc.add_table(rows=0, cols=2)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = False
+    _force_table_layout(table, [left_w, right_w])
 
     for idx, (label, value) in enumerate(rows_data):
         row = table.add_row()
@@ -229,12 +265,13 @@ def _add_attendee_table(doc, person):
         rows_data.append(("From past calls", person["past_call_context"]))
 
     labels = [label for label, _ in rows_data]
-    left_w = _label_width(labels)
+    left_w = _calc_left_width(labels)
     right_w = TOTAL_WIDTH - left_w
 
     table = doc.add_table(rows=0, cols=2)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.autofit = False
+    _force_table_layout(table, [left_w, right_w])
 
     for idx, (label, value) in enumerate(rows_data):
         row = table.add_row()
@@ -286,7 +323,8 @@ def _add_relationship_table(doc, rel_history):
     table.autofit = False
 
     headers = ["Meeting", "Key highlights", "Outcome", "Next steps"]
-    widths = [1.5, 2.2, 1.7, 1.6]
+    widths = [1.5, 2.0, 1.5, 1.69]
+    _force_table_layout(table, widths)
 
     header_cells = table.rows[0].cells
     for i, (cell, header, width) in enumerate(zip(header_cells, headers, widths)):
@@ -325,6 +363,7 @@ def _add_relationship_table(doc, rel_history):
             p2.paragraph_format.space_before = Pt(0)
             p2.paragraph_format.space_after = Pt(2)
 
+        # Key highlights as bullets
         highlights = meeting.get("key_highlights", [])
         if highlights:
             p = cells[1].paragraphs[0]
@@ -338,11 +377,122 @@ def _add_relationship_table(doc, rel_history):
         else:
             _cell_add_text(cells[1], "N/A", size=Pt(8.5))
 
+        # Outcome
         outcome = meeting.get("outcome", "")
         _cell_add_text(cells[2], outcome, size=Pt(8.5))
 
-        next_step = meeting.get("next_step", "")
-        _cell_add_text(cells[3], next_step, size=Pt(8.5))
+        # Next steps as bullets (new format: list)
+        next_steps = meeting.get("next_steps_list", [])
+        if next_steps:
+            p = cells[3].paragraphs[0]
+            run = p.add_run("\u2022 " + next_steps[0])
+            _set_font(run, size=Pt(8.5), color=BODY_COLOR)
+            p.paragraph_format.space_before = Pt(2)
+            p.paragraph_format.space_after = Pt(1)
+            p.paragraph_format.line_spacing = 1.15
+            for ns in next_steps[1:]:
+                _cell_add_bullet(cells[3], ns, size=Pt(8.5), color=BODY_COLOR)
+        elif meeting.get("next_step"):
+            _cell_add_text(cells[3], meeting["next_step"], size=Pt(8.5))
+        else:
+            _cell_add_text(cells[3], "N/A", size=Pt(8.5))
+
+
+def _add_multi_col_table(doc, headers, rows_data, widths):
+    table = doc.add_table(rows=1, cols=len(headers))
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+    _force_table_layout(table, widths)
+
+    header_cells = table.rows[0].cells
+    for i, (cell, header, width) in enumerate(zip(header_cells, headers, widths)):
+        _set_cell_width(cell, width)
+        _set_cell_shading(cell, "1B2A4A")
+        _set_cell_borders(cell, "1B2A4A")
+        _set_cell_valign_top(cell)
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run(header)
+        _set_font(run, size=Pt(9), color=WHITE, bold=True)
+
+    for idx, row_values in enumerate(rows_data):
+        row = table.add_row()
+        cells = row.cells
+        bg = ROW_BG if idx % 2 == 0 else "FFFFFF"
+
+        for i, cell in enumerate(cells):
+            _set_cell_width(cell, widths[i])
+            _set_cell_shading(cell, bg)
+            _set_cell_borders(cell)
+            _set_cell_valign_top(cell)
+            if i < len(row_values):
+                _cell_add_text(cell, row_values[i], size=Pt(8.5))
+
+    return table
+
+
+def _add_objections_table(doc, objections):
+    table = doc.add_table(rows=1, cols=5)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
+
+    headers = ["Objection", "Raised by", "Type", "Severity", "Status & prep"]
+    widths = [1.8, 0.8, 0.89, 0.9, 2.3]
+    _force_table_layout(table, widths)
+
+    header_cells = table.rows[0].cells
+    for i, (cell, header, width) in enumerate(zip(header_cells, headers, widths)):
+        _set_cell_width(cell, width)
+        _set_cell_shading(cell, "1B2A4A")
+        _set_cell_borders(cell, "1B2A4A")
+        _set_cell_valign_top(cell)
+        p = cell.paragraphs[0]
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after = Pt(4)
+        run = p.add_run(header)
+        _set_font(run, size=Pt(9), color=WHITE, bold=True)
+
+    for idx, obj in enumerate(objections):
+        row = table.add_row()
+        cells = row.cells
+        bg = ROW_BG if idx % 2 == 0 else "FFFFFF"
+
+        for i, cell in enumerate(cells):
+            _set_cell_width(cell, widths[i])
+            _set_cell_shading(cell, bg)
+            _set_cell_borders(cell)
+            _set_cell_valign_top(cell)
+
+        _cell_add_text(cells[0], obj.get("objection", ""), size=Pt(8.5))
+        _cell_add_text(cells[1], obj.get("raised_by", ""), size=Pt(8.5))
+        _cell_add_text(cells[2], obj.get("type", ""), size=Pt(8.5))
+        _cell_add_text(cells[3], obj.get("severity", ""), size=Pt(8.5))
+
+        # Status & prep - prep is bold
+        status = obj.get("status", "")
+        our_response = obj.get("our_response", "")
+        prep = obj.get("prep_needed", "")
+
+        p = cells[4].paragraphs[0]
+        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.line_spacing = 1.15
+
+        run = p.add_run(status)
+        _set_font(run, size=Pt(8.5))
+
+        if our_response and our_response != "Not yet addressed":
+            run = p.add_run(" -- " + our_response)
+            _set_font(run, size=Pt(8.5))
+
+        if prep and obj.get("status") != "Addressed":
+            p2 = cells[4].add_paragraph()
+            p2.paragraph_format.space_before = Pt(2)
+            p2.paragraph_format.space_after = Pt(2)
+            p2.paragraph_format.line_spacing = 1.15
+            run = p2.add_run("Prep: " + prep)
+            _set_font(run, size=Pt(8.5), bold=True)
 
 
 def build_docx(data):
@@ -356,7 +506,7 @@ def build_docx(data):
 
     p_date = doc.add_paragraph()
     p_date.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run = p_date.add_run("Prepared for InstaBrief  |  " + date.today().strftime("%B %d, %Y"))
+    run = p_date.add_run("Prepared by InstaBrief  |  " + date.today().strftime("%B %d, %Y"))
     _set_font(run, size=Pt(10), color=GRAY)
     run.italic = True
 
@@ -372,6 +522,8 @@ def build_docx(data):
     if ctx:
         _add_body_italic(doc, ctx)
 
+    is_warm = bool(data.get("stated_pain_points"))
+
     # Meeting Attendees
     attendees = data.get("meeting_attendees", [])
     if attendees:
@@ -379,67 +531,137 @@ def build_docx(data):
         for person in attendees:
             _add_attendee_table(doc, person)
 
-    # Relationship History as table
+    # Relationship History
     rel_history = data.get("relationship_history", [])
     if rel_history:
         _add_section_header(doc, "Relationship History")
         _add_relationship_table(doc, rel_history)
 
-    # Next Steps and Objections
-    next_steps = data.get("next_steps", "")
-    objections = data.get("objections", "")
-    if next_steps or objections:
-        _add_section_header(doc, "Next Steps & Objections")
-        if next_steps:
-            _add_labeled_line(doc, "Next Steps:", next_steps)
-        if objections:
-            _add_labeled_line(doc, "Key Objections:", objections)
+    if is_warm:
+        # ── WARM BRIEF ──
 
-    # Client Profile as table
-    _add_section_header(doc, "Client Profile")
-    profile = data.get("client_profile", {})
-    profile_rows = [
-        ("What they do", profile.get("what_they_do", "N/A")),
-        ("Markets served", profile.get("markets_served", "N/A")),
-        ("Revenue", profile.get("revenue", "N/A")),
-        ("Scale", profile.get("scale", "N/A")),
-        ("Recent growth", profile.get("recent_growth", "N/A")),
-    ]
-    _add_two_col_table(doc, profile_rows)
+        # Stated Pain Points
+        stated_pains = data.get("stated_pain_points", [])
+        if stated_pains:
+            _add_section_header(doc, "Stated Pain Points")
+            pain_headers = ["Pain point", "Who", "Meeting", "Detail"]
+            pain_widths = [1.4, 1.0, 0.9, 3.39]
+            pain_rows = []
+            for sp in stated_pains:
+                pain_rows.append([
+                    sp.get("pain_point", ""),
+                    sp.get("who_stated", ""),
+                    sp.get("meeting", ""),
+                    sp.get("detail", ""),
+                ])
+            _add_multi_col_table(doc, pain_headers, pain_rows, pain_widths)
 
-    # Core Pain Points as table
-    _add_section_header(doc, "Core Pain Points")
-    pain_rows = []
-    for pp in data.get("core_pain_points", []):
-        pain_rows.append((pp.get("title", ""), pp.get("description", "")))
-    if pain_rows:
-        _add_two_col_table(doc, pain_rows)
+        # What They're Looking For
+        looking_for = data.get("what_theyre_looking_for", "")
+        if looking_for:
+            _add_section_header(doc, "What They're Looking For")
+            _add_body(doc, looking_for)
 
-    # Highest-Impact Solutions as table
-    _add_section_header(doc, "Highest-Impact Agentic AI Solutions")
-    sol_rows = []
-    for sol in data.get("highest_impact_solutions", []):
-        sol_rows.append((sol.get("name", ""), sol.get("description", "")))
-    if sol_rows:
-        _add_two_col_table(doc, sol_rows)
+        # Next Steps
+        next_steps_detailed = data.get("next_steps_detailed", [])
+        if next_steps_detailed:
+            _add_section_header(doc, "Next Steps")
+            ns_headers = ["Action", "Owner", "Context", "Deadline"]
+            ns_widths = [2.2, 0.7, 2.29, 1.5]
+            ns_rows = []
+            for ns in next_steps_detailed:
+                ns_rows.append([
+                    ns.get("action", ""),
+                    ns.get("owner", ""),
+                    ns.get("context", ""),
+                    ns.get("deadline", ""),
+                ])
+            _add_multi_col_table(doc, ns_headers, ns_rows, ns_widths)
 
-    # Best Approach
-    _add_section_header(doc, "Best Approach")
-    ba = data.get("best_approach", "")
-    if isinstance(ba, list):
-        for para in ba:
-            _add_body(doc, para)
+        # Key Objections
+        objections_detailed = data.get("objections_detailed", [])
+        if objections_detailed:
+            _add_section_header(doc, "Key Objections")
+            _add_objections_table(doc, objections_detailed)
+
+        # Client Profile
+        _add_section_header(doc, "Client Profile")
+        profile = data.get("client_profile", {})
+        profile_rows = [
+            ("What they do", profile.get("what_they_do", "N/A")),
+            ("Markets served", profile.get("markets_served", "N/A")),
+            ("Revenue", profile.get("revenue", "N/A")),
+            ("Scale", profile.get("scale", "N/A")),
+            ("Recent growth", profile.get("recent_growth", "N/A")),
+        ]
+        _add_two_col_table(doc, profile_rows)
+
+        # Best Approach
+        best_approach = data.get("best_approach_warm", "") or data.get("best_approach", "")
+        if best_approach:
+            _add_section_header(doc, "Best Approach")
+            _add_body(doc, best_approach)
+
+        # AI Insight
+        ai = data.get("ai_insight", "")
+        if ai:
+            _add_section_header(doc, "Relevant AI-Related Insight")
+            if isinstance(ai, list):
+                for para in ai:
+                    _add_body(doc, para)
+            else:
+                _add_body(doc, ai)
+
     else:
-        _add_body(doc, ba)
+        # ── COLD BRIEF ──
 
-    # AI Insight
-    _add_section_header(doc, "Relevant AI-Related Insight")
-    ai = data.get("ai_insight", "")
-    if isinstance(ai, list):
-        for para in ai:
-            _add_body(doc, para)
-    else:
-        _add_body(doc, ai)
+        # Client Profile
+        _add_section_header(doc, "Client Profile")
+        profile = data.get("client_profile", {})
+        profile_rows = [
+            ("What they do", profile.get("what_they_do", "N/A")),
+            ("Markets served", profile.get("markets_served", "N/A")),
+            ("Revenue", profile.get("revenue", "N/A")),
+            ("Scale", profile.get("scale", "N/A")),
+            ("Recent growth", profile.get("recent_growth", "N/A")),
+        ]
+        _add_two_col_table(doc, profile_rows)
+
+        # Core Pain Points
+        _add_section_header(doc, "Core Pain Points")
+        pain_rows = []
+        for pp in data.get("core_pain_points", []):
+            pain_rows.append((pp.get("title", ""), pp.get("description", "")))
+        if pain_rows:
+            _add_two_col_table(doc, pain_rows)
+
+        # Highest-Impact Solutions
+        _add_section_header(doc, "Highest-Impact Agentic AI Solutions")
+        sol_rows = []
+        for sol in data.get("highest_impact_solutions", []):
+            sol_rows.append((sol.get("name", ""), sol.get("description", "")))
+        if sol_rows:
+            _add_two_col_table(doc, sol_rows)
+
+        # Best Approach
+        ba = data.get("best_approach", "")
+        if ba:
+            _add_section_header(doc, "Best Approach")
+            if isinstance(ba, list):
+                for para in ba:
+                    _add_body(doc, para)
+            else:
+                _add_body(doc, ba)
+
+        # AI Insight
+        ai = data.get("ai_insight", "")
+        if ai:
+            _add_section_header(doc, "Relevant AI-Related Insight")
+            if isinstance(ai, list):
+                for para in ai:
+                    _add_body(doc, para)
+            else:
+                _add_body(doc, ai)
 
     # Save
     safe_name = data.get("company_name", "Brief").replace(" ", "_").replace("/", "-")

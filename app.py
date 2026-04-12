@@ -257,16 +257,14 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
     client.chat_postMessage(
         channel=channel,
-        text=":white_check_mark: Generating brief for *" + company["name"] + "*...\nThis takes a couple minutes. I'll send the doc when it's ready."
+        text=":white_check_mark: Generating brief for *" + company["name"] + "*...\nI'll send the doc when it's ready."
     )
 
     def do_work():
         try:
-            # Run Fathom search and Opus brief generation in parallel
             attendee_emails = [a["email"] for a in external_attendees] if external_attendees else None
             attendee_names = [a["name"] for a in external_attendees] if external_attendees else None
 
-            # Shared results from threads
             results = {
                 "fathom_meetings": None,
                 "relationship_context": None,
@@ -275,7 +273,6 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                 "brief_error": None,
             }
 
-            # ── Thread 1: Fathom search + relationship context (Sonnet) ──
             def fathom_work():
                 try:
                     client.chat_postMessage(
@@ -312,7 +309,6 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                         text=":information_source: Could not search past transcripts."
                     )
 
-            # ── Thread 2: Opus brief generation ──
             def brief_work():
                 try:
                     client.chat_postMessage(
@@ -330,17 +326,14 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                     results["brief_error"] = str(e)
                     print("Brief thread error: " + str(e))
 
-            # Start both threads
             t_fathom = threading.Thread(target=fathom_work)
             t_brief = threading.Thread(target=brief_work)
             t_fathom.start()
             t_brief.start()
 
-            # Wait for both to finish
             t_fathom.join()
             t_brief.join()
 
-            # Check for brief generation failure
             if results["brief_data"] is None:
                 raise Exception("Brief generation failed: " + (results["brief_error"] or "Unknown error"))
 
@@ -350,8 +343,11 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
             relationship_context = results["relationship_context"]
             if relationship_context:
                 brief_data["relationship_history"] = relationship_context.get("relationship_history", [])
-                brief_data["next_steps"] = relationship_context.get("next_steps", "")
-                brief_data["objections"] = relationship_context.get("objections", "")
+                brief_data["stated_pain_points"] = relationship_context.get("stated_pain_points", [])
+                brief_data["what_theyre_looking_for"] = relationship_context.get("what_theyre_looking_for", "")
+                brief_data["next_steps_detailed"] = relationship_context.get("next_steps_detailed", [])
+                brief_data["objections_detailed"] = relationship_context.get("objections_detailed", [])
+                brief_data["best_approach_warm"] = relationship_context.get("best_approach_warm", "")
                 # Add per-attendee context
                 attendee_ctx = relationship_context.get("attendee_context", {})
                 for att in brief_data.get("meeting_attendees", []):
@@ -361,6 +357,7 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
             print("BRIEF HAS RELATIONSHIP HISTORY:", "relationship_history" in brief_data,
                   len(brief_data.get("relationship_history", [])))
+            print("BRIEF MODE:", "WARM" if brief_data.get("stated_pain_points") else "COLD")
 
             filepath = build_docx(brief_data)
 
