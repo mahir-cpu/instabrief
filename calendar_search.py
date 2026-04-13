@@ -8,7 +8,16 @@ from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
-ai_client = anthropic.Anthropic()
+ai_client = anthropic.Anthropic(timeout=120)
+
+CALENDARS = [
+    "sumo@instalily.ai",
+    "raghav@instalily.ai",
+    "roxie@instalily.ai",
+    "vir@instalily.ai",
+    "tyler@instalily.ai",
+    "austen@instalily.ai",
+]
 
 
 def _get_creds():
@@ -46,13 +55,10 @@ def search_calendar_for_company(company_name):
     time_min = now.isoformat() + "Z"
     time_max = (now + datetime.timedelta(days=30)).isoformat() + "Z"
 
-    calendars = [
-        "sumo@instalily.ai",
-        "raghav@instalily.ai",
-    ]
-
     all_events = []
-    for cal_id in calendars:
+    seen_event_ids = set()
+
+    for cal_id in CALENDARS:
         try:
             events_result = service.events().list(
                 calendarId=cal_id,
@@ -62,15 +68,20 @@ def search_calendar_for_company(company_name):
                 singleEvents=True,
                 orderBy="startTime",
             ).execute()
-            all_events.extend(events_result.get("items", []))
+            for event in events_result.get("items", []):
+                event_id = event.get("id", "")
+                if event_id and event_id not in seen_event_ids:
+                    seen_event_ids.add(event_id)
+                    all_events.append(event)
+                elif not event_id:
+                    all_events.append(event)
         except Exception:
             pass
 
-    # Sort all events by start time
-    all_events.sort(key=lambda e: e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "")))
-
     if not all_events:
         return []
+
+    all_events.sort(key=lambda e: e.get("start", {}).get("dateTime", e.get("start", {}).get("date", "")))
 
     event_summaries = []
     for i, event in enumerate(all_events):
@@ -99,7 +110,7 @@ def search_calendar_for_company(company_name):
         max_tokens=1024,
         messages=[{
             "role": "user",
-            "content": "I am looking for calendar events that are meetings with the company \"" + company_name + "\".\n\nHere are my upcoming events:\n\n" + events_text + "\n\nWhich events are likely meetings with \"" + company_name + "\"? Consider the event title, attendee names, attendee email domains, and description. A match could be the company name (or part of it) in the title, an attendee with an email domain related to the company, or the company mentioned in the description. Be flexible with matching -- for example 'InstaLILY // Activera' should match 'Activera Consulting'.\n\nReturn ONLY a JSON array of matching event numbers. If no events match, return [].\nReturn ONLY the JSON array. No explanation."
+            "content": "I am looking for calendar events that are meetings with the company \"" + company_name + "\".\n\nHere are my upcoming events:\n\n" + events_text + "\n\nWhich events are likely meetings with \"" + company_name + "\"? Consider the event title, attendee names, attendee email domains, and description. A match could be the company name (or part of it) in the title, an attendee with an email domain related to the company, or the company mentioned in the description. Be flexible with matching -- for example 'InstaLILY // Activera' should match 'Activera Consulting'. Ignore common suffixes like Inc, LLC, Ltd, Corp when matching.\n\nReturn ONLY a JSON array of matching event numbers. If no events match, return [].\nReturn ONLY the JSON array. No explanation."
         }],
     )
 

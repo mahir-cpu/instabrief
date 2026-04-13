@@ -119,7 +119,7 @@ def _handle_company_selected(channel, company, client, logger):
     if not cal_matches:
         state["step"] = "attendees"
         state["external_attendees"] = []
-        msg = _attendee_prompt("No upcoming meetings found for *" + company["name"] + "*.\n\nPaste attendee info (names, titles, LinkedIn URLs -- one per line), or click *Let's go*.")
+        msg = _attendee_prompt("No upcoming meetings found for *" + company["name"] + "*.\n\nClick *Let's go* to generate a brief without meeting-specific attendees.")
         client.chat_postMessage(channel=channel, **msg)
         return
 
@@ -198,7 +198,7 @@ def handle_event_none(ack, body, client, logger):
 
     state["external_attendees"] = []
     state["step"] = "attendees"
-    msg = _attendee_prompt("No problem. Paste attendee info (names, titles, LinkedIn URLs -- one per line), or click *Let's go*.")
+    msg = _attendee_prompt("No problem. Click *Let's go* to generate a brief without meeting-specific attendees.")
     client.chat_postMessage(channel=channel, **msg)
 
 
@@ -311,10 +311,6 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
             def brief_work():
                 try:
-                    client.chat_postMessage(
-                        channel=channel,
-                        text=":brain: Researching company..."
-                    )
                     brief_data = generate_brief(
                         company_name=company["name"],
                         parent_context=company.get("parent", ""),
@@ -339,7 +335,6 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
 
             brief_data = results["brief_data"]
 
-            # Inject relationship context into brief data
             relationship_context = results["relationship_context"]
             if relationship_context:
                 brief_data["relationship_history"] = relationship_context.get("relationship_history", [])
@@ -348,7 +343,6 @@ def _start_generation(channel, state, extra_attendee_info, client, logger):
                 brief_data["next_steps_detailed"] = relationship_context.get("next_steps_detailed", [])
                 brief_data["objections_detailed"] = relationship_context.get("objections_detailed", [])
                 brief_data["best_approach_warm"] = relationship_context.get("best_approach_warm", "")
-                # Add per-attendee context
                 attendee_ctx = relationship_context.get("attendee_context", {})
                 for att in brief_data.get("meeting_attendees", []):
                     name = att.get("name", "")
