@@ -1,12 +1,11 @@
 """
-Quick test script — runs the batch for a single person on a specific date.
+Quick test script — runs the batch for one or more people on a specific date.
 
 Usage (from repo root):
-    python batch/test_batch.py                          # Austen, tomorrow
-    python batch/test_batch.py --person Sumo            # Sumo, tomorrow
-    python batch/test_batch.py --date 2026-04-17        # Austen, specific date
-    python batch/test_batch.py --person Sumo --date 2026-04-17
-    python batch/test_batch.py --all                    # everyone, tomorrow
+    python batch/test_batch.py --person Sumo --channel C08P96GDG6M
+    python batch/test_batch.py --person Sumo,Raghav --channel C08P96GDG6M,C097KCDC6E6
+    python batch/test_batch.py --person Austen --date 2026-04-17
+    python batch/test_batch.py --all
 """
 
 import os
@@ -24,7 +23,7 @@ from batch.batch_runner import generate_meeting_brief, run_batch
 from batch.canvas_builder import create_rundown_canvas, send_rundown_dm
 
 
-def run_single_person_test(person_name, target_date):
+def run_single_person_test(person_name, target_date, send_to):
     """Run the batch pipeline for a single person only."""
     date_str = target_date.strftime("%Y-%m-%d")
     friendly_date = target_date.strftime("%A, %B %-d, %Y")
@@ -83,14 +82,11 @@ def run_single_person_test(person_name, target_date):
         canvas_info = create_rundown_canvas(person_name, friendly_date, canvas_meetings)
         print(f"Canvas created: {canvas_info['canvas_url']}")
 
-        # In test mode, always DM Mahir instead of the person being tested
-        # Uses Mahir's Slack user ID — the bot will open a DM automatically
-        test_user_id = os.environ.get("SLACK_USER_MAHIR", "")
-        if test_user_id:
-            send_rundown_dm(test_user_id, person_name, friendly_date, canvas_info["canvas_url"])
-            print(f"DM sent to Mahir (test mode) with {person_name}'s rundown")
+        if send_to:
+            send_rundown_dm(send_to, person_name, friendly_date, canvas_info["canvas_url"])
+            print(f"Sent to {send_to}")
         else:
-            print(f"Set SLACK_USER_MAHIR in Railway to receive test DMs")
+            print("No --channel provided, canvas created but not sent")
     else:
         print("No external meetings — nothing to send.")
 
@@ -100,8 +96,9 @@ def run_single_person_test(person_name, target_date):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Test InstaBrief for a single person")
-    parser.add_argument("--person", default="Austen", help="Person name (default: Austen)")
+    parser = argparse.ArgumentParser(description="Test InstaBrief for one or more people")
+    parser.add_argument("--person", default="Austen", help="Person name(s), comma-separated (default: Austen)")
+    parser.add_argument("--channel", default=None, help="Channel/user ID(s) to send to, comma-separated")
     parser.add_argument("--date", default=None, help="Target date YYYY-MM-DD (default: tomorrow)")
     parser.add_argument("--all", action="store_true", help="Run for everyone (full batch)")
     args = parser.parse_args()
@@ -114,4 +111,11 @@ if __name__ == "__main__":
     if args.all:
         run_batch(target)
     else:
-        run_single_person_test(args.person, target)
+        people = [p.strip() for p in args.person.split(",")]
+        channels = [c.strip() for c in args.channel.split(",")] if args.channel else [None] * len(people)
+
+        if len(channels) == 1 and len(people) > 1:
+            channels = channels * len(people)
+
+        for person, channel in zip(people, channels):
+            run_single_person_test(person, target, channel)

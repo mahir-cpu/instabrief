@@ -324,6 +324,8 @@ def run_batch(target_date=None):
             print("    Canvas creation failed: " + str(e))
 
     # Step 4: DM each person — just the canvas link
+    # Also send Mahir a copy of every canvas
+    mahir_user_id = os.environ.get("SLACK_USER_MAHIR", "")
     print("\n[4/4] Sending DMs...")
     for person_name, canvas_info in canvas_results.items():
         user_id = SLACK_USER_IDS.get(person_name, "")
@@ -335,6 +337,14 @@ def run_batch(target_date=None):
                 print("  DM failed for " + person_name + ": " + str(e))
         else:
             print("  No Slack user ID configured for " + person_name)
+
+        # Send Mahir a copy (skip if Mahir is the person)
+        if mahir_user_id and user_id != mahir_user_id:
+            try:
+                send_rundown_dm(mahir_user_id, person_name, friendly_date, canvas_info["canvas_url"])
+                print("  Copy sent to Mahir")
+            except Exception as e:
+                print("  Copy to Mahir failed: " + str(e))
 
     # Summary
     print("\n" + "#" * 60)
