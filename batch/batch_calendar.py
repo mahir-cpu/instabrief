@@ -24,14 +24,15 @@ PEOPLE = {
     "Austen": "austen@instalily.ai",
 }
 
-# Slack DM channel IDs for each person
-SLACK_DMS = {
-    "Sumo": os.environ.get("SLACK_DM_SUMO", ""),
-    "Raghav": os.environ.get("SLACK_DM_RAGHAV", ""),
-    "Roxie": os.environ.get("SLACK_DM_ROXIE", ""),
-    "Vir": os.environ.get("SLACK_DM_VIR", ""),
-    "Tyler": os.environ.get("SLACK_DM_TYLER", ""),
-    "Austen": os.environ.get("SLACK_DM_AUSTEN", ""),
+# Slack user IDs for each person (U... IDs, not DM channel IDs)
+# The bot will open a DM conversation automatically using conversations_open
+SLACK_USER_IDS = {
+    "Sumo": os.environ.get("SLACK_USER_SUMO", ""),
+    "Raghav": os.environ.get("SLACK_USER_RAGHAV", ""),
+    "Roxie": os.environ.get("SLACK_USER_ROXIE", ""),
+    "Vir": os.environ.get("SLACK_USER_VIR", ""),
+    "Tyler": os.environ.get("SLACK_USER_TYLER", ""),
+    "Austen": os.environ.get("SLACK_USER_AUSTEN", ""),
 }
 
 

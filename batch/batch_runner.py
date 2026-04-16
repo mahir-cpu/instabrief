@@ -34,7 +34,7 @@ load_dotenv()
 # Add parent directory to path so we can import shared modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from batch.batch_calendar import get_all_events_for_date, PEOPLE, SLACK_DMS
+from batch.batch_calendar import get_all_events_for_date, PEOPLE, SLACK_USER_IDS
 from company_identifier import identify_company_from_meeting
 from brief_generator import generate_brief
 from fathom_search import search_fathom_for_company, generate_relationship_context
@@ -326,15 +326,15 @@ def run_batch(target_date=None):
     # Step 4: DM each person — just the canvas link
     print("\n[4/4] Sending DMs...")
     for person_name, canvas_info in canvas_results.items():
-        dm_channel = SLACK_DMS.get(person_name, "")
-        if dm_channel:
+        user_id = SLACK_USER_IDS.get(person_name, "")
+        if user_id:
             try:
-                send_rundown_dm(dm_channel, person_name, friendly_date, canvas_info["canvas_url"])
+                send_rundown_dm(user_id, person_name, friendly_date, canvas_info["canvas_url"])
                 print("  DM sent to " + person_name)
             except Exception as e:
                 print("  DM failed for " + person_name + ": " + str(e))
         else:
-            print("  No DM channel configured for " + person_name)
+            print("  No Slack user ID configured for " + person_name)
 
     # Summary
     print("\n" + "#" * 60)
@@ -342,7 +342,7 @@ def run_batch(target_date=None):
     print("Total external meetings: " + str(len(unique_meetings)))
     print("Briefs generated: " + str(len(brief_results)) + " (non-recurring only)")
     print("Canvases created: " + str(len(canvas_results)))
-    print("DMs sent: " + str(sum(1 for p in canvas_results if SLACK_DMS.get(p))))
+    print("DMs sent: " + str(sum(1 for p in canvas_results if SLACK_USER_IDS.get(p))))
     print("Finished: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print("#" * 60)
 

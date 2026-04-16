@@ -19,7 +19,7 @@ load_dotenv()
 # Add parent directory to path so we can import shared modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from batch.batch_calendar import get_all_events_for_date, PEOPLE, SLACK_DMS
+from batch.batch_calendar import get_all_events_for_date, PEOPLE, SLACK_USER_IDS
 from batch.batch_runner import generate_meeting_brief, run_batch
 from batch.canvas_builder import create_rundown_canvas, send_rundown_dm
 
@@ -84,9 +84,13 @@ def run_single_person_test(person_name, target_date):
         print(f"Canvas created: {canvas_info['canvas_url']}")
 
         # In test mode, always DM Mahir instead of the person being tested
-        test_dm_channel = os.environ.get("SLACK_DM_TEST", "D0ADN0LHQ4E")
-        send_rundown_dm(test_dm_channel, person_name, friendly_date, canvas_info["canvas_url"])
-        print(f"DM sent to Mahir (test mode) with {person_name}'s rundown")
+        # Uses Mahir's Slack user ID — the bot will open a DM automatically
+        test_user_id = os.environ.get("SLACK_USER_MAHIR", "")
+        if test_user_id:
+            send_rundown_dm(test_user_id, person_name, friendly_date, canvas_info["canvas_url"])
+            print(f"DM sent to Mahir (test mode) with {person_name}'s rundown")
+        else:
+            print(f"Set SLACK_USER_MAHIR in Railway to receive test DMs")
     else:
         print("No external meetings — nothing to send.")
 

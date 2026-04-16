@@ -110,11 +110,22 @@ def create_rundown_canvas(person_name, date_str, meetings_data):
     }
 
 
-def send_rundown_dm(channel_id, person_name, date_str, canvas_url):
-    """Send a DM to a person with their daily rundown canvas link."""
-    if not channel_id:
-        print("No Slack DM channel configured for " + person_name + ", skipping DM")
+def send_rundown_dm(user_id_or_channel, person_name, date_str, canvas_url):
+    """
+    Send a DM to a person with their daily rundown canvas link.
+    Accepts either a user ID (U...) or a DM channel ID (D...).
+    If given a user ID, opens a DM conversation first.
+    """
+    if not user_id_or_channel:
+        print("No Slack user/channel configured for " + person_name + ", skipping DM")
         return
+
+    # If it's a user ID, open a DM conversation first
+    if user_id_or_channel.startswith("U"):
+        response = slack_client.conversations_open(users=[user_id_or_channel])
+        channel_id = response["channel"]["id"]
+    else:
+        channel_id = user_id_or_channel
 
     slack_client.chat_postMessage(
         channel=channel_id,
