@@ -83,12 +83,10 @@ def run_single_person_test(person_name, target_date):
         canvas_info = create_rundown_canvas(person_name, friendly_date, canvas_meetings)
         print(f"Canvas created: {canvas_info['canvas_url']}")
 
-        dm_channel = SLACK_DMS.get(person_name, "")
-        if dm_channel:
-            send_rundown_dm(dm_channel, person_name, friendly_date, canvas_info["canvas_url"])
-            print(f"DM sent to {person_name}")
-        else:
-            print(f"No DM channel for {person_name} — set SLACK_DM_{person_name.upper()}")
+        # In test mode, always DM Mahir instead of the person being tested
+        test_dm_channel = os.environ.get("SLACK_DM_TEST", "D0ADN0LHQ4E")
+        send_rundown_dm(test_dm_channel, person_name, friendly_date, canvas_info["canvas_url"])
+        print(f"DM sent to Mahir (test mode) with {person_name}'s rundown")
     else:
         print("No external meetings — nothing to send.")
 
