@@ -59,7 +59,7 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
             location = ""
 
         att_parts = []
-        for att in m.get("external_attendees", [])[:4]:
+        for att in m.get("external_attendees", [])[:5]:
             name = att.get("name", "Unknown")
             linkedin = att.get("linkedin_url", "")
             if linkedin:

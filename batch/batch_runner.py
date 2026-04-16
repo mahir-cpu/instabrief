@@ -97,7 +97,7 @@ def generate_meeting_brief(meeting, date_str):
         or None if generation failed
     """
     title = meeting["title"]
-    external_attendees = meeting["external_attendees"]
+    external_attendees = meeting["external_attendees"][:5]  # Cap at 5 attendees for briefs
     event_id = meeting["event_id"]
 
     print("\n" + "=" * 60)
