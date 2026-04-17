@@ -308,6 +308,7 @@ def run_batch(target_date=None):
                         for a in meeting["external_attendees"]
                     ],
                     "brief_link": brief["drive_link"] if brief else "",
+                    "is_recurring": meeting.get("is_recurring", False),
                 })
 
         if not person_meetings:

@@ -34,12 +34,12 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
     lines.append("|---|---|---|---|---|")
 
     for m in meetings_data:
-        title = m["title"].replace("|", "\u2014")
+        title = m["title"].replace("|", "\u2014").replace("<", "").replace(">", "")
 
         time_str = m["start_time"] + " \u2013 " + m["end_time"]
 
         if m.get("meeting_link"):
-            link = m["meeting_link"]
+            link = m["meeting_link"].strip()
             if "zoom" in link.lower():
                 location = "[Zoom](" + link + ")"
             elif "teams" in link.lower():
@@ -68,13 +68,17 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
                 att_parts.append(name)
 
         total_attendees = len(m.get("external_attendees", []))
-        if total_attendees > 4:
-            att_parts.append("+" + str(total_attendees - 4) + " more")
+        if total_attendees > 5:
+            att_parts.append("+" + str(total_attendees - 5) + " more")
 
         attendees = ", ".join(att_parts) if att_parts else ""
 
         if m.get("brief_link"):
-            notes = "[Brief](" + m["brief_link"] + ")"
+            # Strip query params — Slack canvas markdown chokes on complex URLs
+            brief_url = m["brief_link"].split("?")[0]
+            notes = "[Brief](" + brief_url + ")"
+        elif m.get("is_recurring"):
+            notes = "Recurring meeting"
         else:
             notes = ""
 

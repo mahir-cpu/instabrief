@@ -76,6 +76,7 @@ def run_single_person_test(person_name, target_date, send_to):
                 {"name": a["name"], "linkedin_url": ""} for a in meeting["external_attendees"]
             ],
             "brief_link": brief["drive_link"] if brief else "",
+            "is_recurring": meeting.get("is_recurring", False),
         })
 
     if canvas_meetings:
