@@ -19,7 +19,7 @@ PEOPLE = {
     "Sumo": "sumo@instalily.ai",
     "Raghav": "raghav@instalily.ai",
     "Roxie": "roxie@instalily.ai",
-    "Vir": "vir@instalily.ai",
+    "Jacob": "jacob@instalily.ai",
     "Tyler": "tyler@instalily.ai",
     "Austen": "austen@instalily.ai",
 }
@@ -30,7 +30,7 @@ SLACK_USER_IDS = {
     "Sumo": os.environ.get("SLACK_USER_SUMO", ""),
     "Raghav": os.environ.get("SLACK_USER_RAGHAV", ""),
     "Roxie": os.environ.get("SLACK_USER_ROXIE", ""),
-    "Vir": os.environ.get("SLACK_USER_VIR", ""),
+    "Jacob": os.environ.get("SLACK_USER_JACOB", ""),
     "Tyler": os.environ.get("SLACK_USER_TYLER", ""),
     "Austen": os.environ.get("SLACK_USER_AUSTEN", ""),
 }
