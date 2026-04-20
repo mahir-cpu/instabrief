@@ -4,9 +4,23 @@ with a table linking to brief PDFs in Google Drive.
 """
 
 import os
+import re
 from slack_sdk import WebClient
 
 slack_client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN", ""))
+
+
+def _sanitize_text(text):
+    """Remove characters that break Slack canvas markdown tables."""
+    return text.replace("|", "\u2014").replace("<", "").replace(">", "").replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+
+
+def _is_valid_url(url):
+    """Check if a URL is a valid http/https link for Slack canvas markdown."""
+    if not url:
+        return False
+    url = url.strip()
+    return url.startswith("http://") or url.startswith("https://")
 
 
 def _build_canvas_markdown(person_name, date_str, meetings_data):
@@ -34,35 +48,38 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
     lines.append("|---|---|---|---|---|")
 
     for m in meetings_data:
-        title = m["title"].replace("|", "\u2014").replace("<", "").replace(">", "")
+        title = _sanitize_text(m["title"])
 
         time_str = m["start_time"] + " \u2013 " + m["end_time"]
 
-        if m.get("meeting_link"):
-            link = m["meeting_link"].strip()
+        # Location / meeting link
+        link = m.get("meeting_link", "").strip()
+        if link and _is_valid_url(link):
+            # Strip query params from meeting links too
+            clean_link = link.split("?")[0]
             if "zoom" in link.lower():
-                location = "[Zoom](" + link + ")"
+                location = "[Zoom](" + clean_link + ")"
             elif "teams" in link.lower():
-                location = "[Teams](" + link + ")"
+                location = "[Teams](" + clean_link + ")"
             elif "meet.google" in link.lower():
-                location = "[Google Meet](" + link + ")"
+                location = "[Google Meet](" + clean_link + ")"
             else:
-                location = "[Join](" + link + ")"
+                location = "[Join](" + clean_link + ")"
         elif m.get("location"):
             loc = m["location"]
-            if loc.startswith("http"):
-                location = "[Location](" + loc + ")"
+            if _is_valid_url(loc):
+                location = "[Location](" + loc.split("?")[0] + ")"
             else:
-                maps_url = "https://www.google.com/maps/search/" + loc.replace(" ", "+")
-                location = "[" + loc[:30] + "](" + maps_url + ")"
+                location = _sanitize_text(loc[:30])
         else:
             location = ""
 
+        # Attendees (cap at 5)
         att_parts = []
         for att in m.get("external_attendees", [])[:5]:
-            name = att.get("name", "Unknown")
+            name = _sanitize_text(att.get("name", "Unknown"))
             linkedin = att.get("linkedin_url", "")
-            if linkedin:
+            if linkedin and _is_valid_url(linkedin):
                 att_parts.append("[" + name + "](" + linkedin + ")")
             else:
                 att_parts.append(name)
@@ -73,10 +90,13 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
 
         attendees = ", ".join(att_parts) if att_parts else ""
 
+        # Notes — brief link or recurring label
         if m.get("brief_link"):
-            # Strip query params — Slack canvas markdown chokes on complex URLs
             brief_url = m["brief_link"].split("?")[0]
-            notes = "[Brief](" + brief_url + ")"
+            if _is_valid_url(brief_url):
+                notes = "[Brief](" + brief_url + ")"
+            else:
+                notes = ""
         elif m.get("is_recurring"):
             notes = "Recurring meeting"
         else:
@@ -84,7 +104,9 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
 
         lines.append("| " + title + " | " + time_str + " | " + location + " | " + attendees + " | " + notes + " |")
 
-    return "\n".join(lines)
+    markdown = "\n".join(lines)
+    print("  Canvas markdown:\n" + markdown)
+    return markdown
 
 
 def create_rundown_canvas(person_name, date_str, meetings_data):
