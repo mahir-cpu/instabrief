@@ -110,6 +110,12 @@ def generate_brief(company_name, parent_context="", attendees=""):
                 time.sleep(wait)
                 if attempt == 3:
                     raise
+            elif "500" in error_str or "internal server error" in error_str or "server_error" in error_str or "api_error" in error_str:
+                wait = 30 * (attempt + 1)
+                print("API server error (attempt " + str(attempt + 1) + "/4), retrying in " + str(wait) + "s...")
+                time.sleep(wait)
+                if attempt == 3:
+                    raise
             else:
                 raise
 
