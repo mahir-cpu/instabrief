@@ -44,8 +44,8 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
     """
     lines = []
 
-    lines.append("| Meeting | Time | Location | Attendees | Notes |")
-    lines.append("|---|---|---|---|---|")
+    lines.append("| Meeting | Time | Location | Notes |")
+    lines.append("|---|---|---|---|")
 
     for m in meetings_data:
         title = _sanitize_text(m["title"])
@@ -74,22 +74,6 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
         else:
             location = ""
 
-        # Attendees (cap at 5)
-        att_parts = []
-        for att in m.get("external_attendees", [])[:5]:
-            name = _sanitize_text(att.get("name", "Unknown"))
-            linkedin = att.get("linkedin_url", "")
-            if linkedin and _is_valid_url(linkedin):
-                att_parts.append("[" + name + "](" + linkedin + ")")
-            else:
-                att_parts.append(name)
-
-        total_attendees = len(m.get("external_attendees", []))
-        if total_attendees > 5:
-            att_parts.append("+" + str(total_attendees - 5) + " more")
-
-        attendees = ", ".join(att_parts) if att_parts else ""
-
         # Notes — brief link or recurring label
         if m.get("brief_link"):
             brief_url = m["brief_link"].split("?")[0]
@@ -102,7 +86,7 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
         else:
             notes = ""
 
-        lines.append("| " + title + " | " + time_str + " | " + location + " | " + attendees + " | " + notes + " |")
+        lines.append("| " + title + " | " + time_str + " | " + location + " | " + notes + " |")
 
     markdown = "\n".join(lines)
     print("  Canvas markdown:\n" + markdown)
