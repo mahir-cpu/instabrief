@@ -22,6 +22,7 @@ PEOPLE = {
     "Jacob": "jacob@instalily.ai",
     "Tyler": "tyler@instalily.ai",
     "Austen": "austen@instalily.ai",
+    "Vir": "vir@instalily.ai",
 }
 
 # Slack user IDs for each person (U... IDs, not DM channel IDs)
@@ -33,6 +34,7 @@ SLACK_USER_IDS = {
     "Jacob": os.environ.get("SLACK_USER_JACOB", ""),
     "Tyler": os.environ.get("SLACK_USER_TYLER", ""),
     "Austen": os.environ.get("SLACK_USER_AUSTEN", ""),
+    "Vir": os.environ.get("SLACK_USER_VIR", ""),
 }
 
 

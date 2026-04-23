@@ -4,4 +4,5 @@ oauth_creds.json
 token.json
 __pycache__/
 *.pyc
-*.docx
+*.docxdrive_token.json
+drive_token.json
