@@ -324,28 +324,16 @@ def run_batch(target_date=None):
         except Exception as e:
             print("    Canvas creation failed: " + str(e))
 
-    # Step 4: DM each person — just the canvas link
-    # Also send Mahir a copy of every canvas
-    mahir_user_id = os.environ.get("SLACK_USER_MAHIR", "")
-    print("\n[4/4] Sending DMs...")
+    # Step 4: DM canvases — currently sending ALL to Mahir for review
+    # TODO: Switch back to individual DMs once testing is complete
+    mahir_user_id = "U0ADQ29GE4A"
+    print("\n[4/4] Sending all canvases to Mahir for review...")
     for person_name, canvas_info in canvas_results.items():
-        user_id = SLACK_USER_IDS.get(person_name, "")
-        if user_id:
-            try:
-                send_rundown_dm(user_id, person_name, friendly_date, canvas_info["canvas_url"])
-                print("  DM sent to " + person_name)
-            except Exception as e:
-                print("  DM failed for " + person_name + ": " + str(e))
-        else:
-            print("  No Slack user ID configured for " + person_name)
-
-        # Send Mahir a copy (skip if Mahir is the person)
-        if mahir_user_id and user_id != mahir_user_id:
-            try:
-                send_rundown_dm(mahir_user_id, person_name, friendly_date, canvas_info["canvas_url"])
-                print("  Copy sent to Mahir")
-            except Exception as e:
-                print("  Copy to Mahir failed: " + str(e))
+        try:
+            send_rundown_dm(mahir_user_id, person_name, friendly_date, canvas_info["canvas_url"])
+            print("  " + person_name + "'s canvas sent to Mahir")
+        except Exception as e:
+            print("  DM to Mahir failed for " + person_name + "'s canvas: " + str(e))
 
     # Summary
     print("\n" + "#" * 60)
@@ -353,7 +341,7 @@ def run_batch(target_date=None):
     print("Total external meetings: " + str(len(unique_meetings)))
     print("Briefs generated: " + str(len(brief_results)) + " (non-recurring only)")
     print("Canvases created: " + str(len(canvas_results)))
-    print("DMs sent: " + str(sum(1 for p in canvas_results if SLACK_USER_IDS.get(p))))
+    print("DMs sent to Mahir: " + str(len(canvas_results)))
     print("Finished: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print("#" * 60)
 
