@@ -255,16 +255,68 @@ def run_batch(target_date=None):
         print("No external meetings found. Nothing to do.")
         return
 
-    # Step 2: Generate briefs for non-recurring meetings (parallel)
+    # Step 2: Generate briefs for eligible meetings (parallel)
     print("\n[2/4] Generating briefs...")
     brief_results = {}  # event_id -> brief result dict
 
-    # Split meetings into brief-eligible (non-recurring) and recurring
-    meetings_needing_briefs = [m for m in unique_meetings if not m.get("is_recurring", False)]
+    # Count meetings per external domain to detect high-frequency companies
+    domain_counts = {}
+    for m in unique_meetings:
+        for att in m.get("external_attendees", []):
+            domain = att["email"].split("@")[1] if "@" in att["email"] else ""
+            if domain:
+                domain_counts[domain] = domain_counts.get(domain, 0) + 1
+
+    high_freq_domains = {d for d, c in domain_counts.items() if c > 10}
+    if high_freq_domains:
+        print("  High-frequency domains (>10 meetings, skipping briefs): " + ", ".join(high_freq_domains))
+
+    # Personal/generic email domains — no useful company to research
+    PERSONAL_DOMAINS = {
+        "gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com",
+        "icloud.com", "me.com", "mac.com", "live.com", "msn.com",
+        "protonmail.com", "proton.me", "ymail.com", "mail.com",
+    }
+
+    def _is_interview(title):
+        return "interview" in title.lower()
+
+    def _is_high_freq_company(meeting):
+        for att in meeting.get("external_attendees", []):
+            domain = att["email"].split("@")[1] if "@" in att["email"] else ""
+            if domain in high_freq_domains:
+                return True
+        return False
+
+    def _is_personal_email_only(meeting):
+        """Skip if ALL external attendees are from personal email domains."""
+        external = meeting.get("external_attendees", [])
+        if not external:
+            return True
+        for att in external:
+            domain = att["email"].split("@")[1] if "@" in att["email"] else ""
+            if domain and domain.lower() not in PERSONAL_DOMAINS:
+                return False
+        return True
+
+    # Filter: non-recurring, not an interview, not a high-frequency company, not personal email only
+    meetings_needing_briefs = [
+        m for m in unique_meetings
+        if not m.get("is_recurring", False)
+        and not _is_interview(m["title"])
+        and not _is_high_freq_company(m)
+        and not _is_personal_email_only(m)
+    ]
+    skipped_interviews = [m for m in unique_meetings if _is_interview(m["title"])]
+    skipped_high_freq = [m for m in unique_meetings if not m.get("is_recurring", False) and _is_high_freq_company(m)]
+    skipped_personal = [m for m in unique_meetings if not m.get("is_recurring", False) and _is_personal_email_only(m)]
     recurring_meetings = [m for m in unique_meetings if m.get("is_recurring", False)]
 
-    print("  Non-recurring (will generate briefs): " + str(len(meetings_needing_briefs)))
+    print("  Will generate briefs: " + str(len(meetings_needing_briefs)))
     print("  Recurring (no briefs): " + str(len(recurring_meetings)))
+    print("  Interviews (no briefs): " + str(len(skipped_interviews)))
+    print("  High-frequency company (no briefs): " + str(len(skipped_high_freq)))
+    print("  Personal email only (no briefs): " + str(len(skipped_personal)))
 
     if meetings_needing_briefs:
         with ThreadPoolExecutor(max_workers=MAX_PARALLEL_BRIEFS) as executor:
