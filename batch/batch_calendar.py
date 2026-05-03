@@ -16,13 +16,15 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 # Map of person name -> calendar ID
 PEOPLE = {
-    "Sumo": "sumo@instalily.ai",
-    "Raghav": "raghav@instalily.ai",
-    "Roxie": "roxie@instalily.ai",
-    "Jacob": "jacob@instalily.ai",
-    "Tyler": "tyler@instalily.ai",
-    "Austen": "austen@instalily.ai",
-    "Vir": "vir@instalily.ai",
+    # "Sumo": "sumo@instalily.ai",
+    # "Raghav": "raghav@instalily.ai",
+    # "Roxie": "roxie@instalily.ai",
+    # "Jacob": "jacob@instalily.ai",
+    # "Tyler": "tyler@instalily.ai",
+    # "Austen": "austen@instalily.ai",
+    # "Vir": "vir@instalily.ai",
+    "Rohan": "rohan@instalily.ai",
+    "Iris": "iris@instalily.ai",
 }
 
 # Slack user IDs for each person (U... IDs, not DM channel IDs)
@@ -35,6 +37,8 @@ SLACK_USER_IDS = {
     "Tyler": os.environ.get("SLACK_USER_TYLER", ""),
     "Austen": os.environ.get("SLACK_USER_AUSTEN", ""),
     "Vir": os.environ.get("SLACK_USER_VIR", ""),
+    "Rohan": os.environ.get("SLACK_USER_ROHAN", ""),
+    "Iris": os.environ.get("SLACK_USER_IRIS", ""),
 }
 
 

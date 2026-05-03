@@ -278,6 +278,18 @@ def run_batch(target_date=None):
         "protonmail.com", "proton.me", "ymail.com", "mail.com",
     }
 
+    # Meetings to exclude entirely from canvases and briefs
+    EXCLUDED_TITLE_PHRASES = [
+        "connect on ae role at instalily",
+    ]
+
+    def _is_excluded_meeting(title):
+        title_lower = title.lower()
+        for phrase in EXCLUDED_TITLE_PHRASES:
+            if phrase in title_lower:
+                return True
+        return False
+
     def _is_interview(title):
         return "interview" in title.lower()
 
@@ -298,6 +310,9 @@ def run_batch(target_date=None):
             if domain and domain.lower() not in PERSONAL_DOMAINS:
                 return False
         return True
+
+    # Filter out excluded meetings from the full list before any processing
+    unique_meetings = [m for m in unique_meetings if not _is_excluded_meeting(m["title"])]
 
     # Filter: non-recurring, not an interview, not a high-frequency company, not personal email only
     meetings_needing_briefs = [

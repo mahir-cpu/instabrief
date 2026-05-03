@@ -12,7 +12,7 @@ slack_client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN", ""))
 
 def _sanitize_text(text):
     """Remove characters that break Slack canvas markdown tables."""
-    return text.replace("|", "\u2014").replace("<", "").replace(">", "").replace("[", "").replace("]", "").replace("(", "").replace(")", "")
+    return text.replace("|", "—").replace("<", "").replace(">", "").replace("[", "").replace("]", "").replace("(", "").replace(")", "")
 
 
 def _is_valid_url(url):
@@ -44,35 +44,13 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
     """
     lines = []
 
-    lines.append("| Meeting | Time | Location | Notes |")
-    lines.append("|---|---|---|---|")
+    lines.append("| Meeting | Time | Notes |")
+    lines.append("|---|---|---|")
 
     for m in meetings_data:
         title = _sanitize_text(m["title"])
 
-        time_str = m["start_time"] + " \u2013 " + m["end_time"]
-
-        # Location / meeting link
-        link = m.get("meeting_link", "").strip()
-        if link and _is_valid_url(link):
-            # Strip query params from meeting links too
-            clean_link = link.split("?")[0]
-            if "zoom" in link.lower():
-                location = "[Zoom](" + clean_link + ")"
-            elif "teams" in link.lower():
-                location = "[Teams](" + clean_link + ")"
-            elif "meet.google" in link.lower():
-                location = "[Google Meet](" + clean_link + ")"
-            else:
-                location = "[Join](" + clean_link + ")"
-        elif m.get("location"):
-            loc = m["location"]
-            if _is_valid_url(loc):
-                location = "[Location](" + loc.split("?")[0] + ")"
-            else:
-                location = _sanitize_text(loc[:30])
-        else:
-            location = ""
+        time_str = m["start_time"] + " – " + m["end_time"]
 
         # Notes — brief link or recurring label
         if m.get("brief_link"):
@@ -86,7 +64,7 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
         else:
             notes = ""
 
-        lines.append("| " + title + " | " + time_str + " | " + location + " | " + notes + " |")
+        lines.append("| " + title + " | " + time_str + " | " + notes + " |")
 
     markdown = "\n".join(lines)
     print("  Canvas markdown:\n" + markdown)
@@ -102,7 +80,7 @@ def create_rundown_canvas(person_name, date_str, meetings_data):
     """
     markdown = _build_canvas_markdown(person_name, date_str, meetings_data)
 
-    title = "InstaBrief \u2014 " + person_name + " | " + date_str
+    title = "InstaBrief — " + person_name + " | " + date_str
 
     response = slack_client.canvases_create(
         title=title,
