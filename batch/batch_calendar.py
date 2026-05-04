@@ -16,13 +16,13 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 # Map of person name -> calendar ID
 PEOPLE = {
-    # "Sumo": "sumo@instalily.ai",
-    # "Raghav": "raghav@instalily.ai",
-    # "Roxie": "roxie@instalily.ai",
-    # "Jacob": "jacob@instalily.ai",
-    # "Tyler": "tyler@instalily.ai",
-    # "Austen": "austen@instalily.ai",
-    # "Vir": "vir@instalily.ai",
+    "Sumo": "sumo@instalily.ai",
+    "Raghav": "raghav@instalily.ai",
+    "Roxie": "roxie@instalily.ai",
+    "Jacob": "jacob@instalily.ai",
+    "Tyler": "tyler@instalily.ai",
+    "Austen": "austen@instalily.ai",
+    "Vir": "vir@instalily.ai",
     "Rohan": "rohan@instalily.ai",
     "Iris": "iris@instalily.ai",
 }
