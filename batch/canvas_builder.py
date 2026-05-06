@@ -5,6 +5,7 @@ with a table linking to brief PDFs in Google Drive.
 
 import os
 import re
+import datetime
 from slack_sdk import WebClient
 
 slack_client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN", ""))
@@ -21,6 +22,15 @@ def _is_valid_url(url):
         return False
     url = url.strip()
     return url.startswith("http://") or url.startswith("https://")
+
+
+def _parse_start_time(time_str):
+    """Parse a start_time string like '9:00 AM' or '1:30 PM' into a sortable value."""
+    try:
+        return datetime.datetime.strptime(time_str.strip(), "%I:%M %p")
+    except (ValueError, AttributeError):
+        # If parsing fails, push to end of list
+        return datetime.datetime.max
 
 
 def _build_canvas_markdown(person_name, date_str, meetings_data):
@@ -42,6 +52,9 @@ def _build_canvas_markdown(person_name, date_str, meetings_data):
     Returns:
         str — Slack canvas markdown content
     """
+    # Sort meetings by start time
+    meetings_data = sorted(meetings_data, key=lambda m: _parse_start_time(m.get("start_time", "")))
+
     lines = []
 
     lines.append("| Meeting | Time | Notes |")
