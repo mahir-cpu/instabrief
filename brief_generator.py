@@ -1,10 +1,20 @@
 import json
+import os
 import time
 import anthropic
 from dotenv import load_dotenv
 load_dotenv()
 
 client = anthropic.Anthropic(timeout=300)
+
+# Load proven use cases from reference file
+_USE_CASES_PATH = os.path.join(os.path.dirname(__file__), "references", "use_cases.txt")
+try:
+    with open(_USE_CASES_PATH, "r") as f:
+        _USE_CASES_TEXT = f.read()
+except FileNotFoundError:
+    _USE_CASES_TEXT = ""
+    print("Warning: use_cases.txt not found at " + _USE_CASES_PATH)
 
 SYSTEM_PROMPT = """You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief, an agentic AI solutions company.
 
@@ -26,6 +36,19 @@ STYLE RULES:
 - Highest-Impact solutions should each have a bold name, then a paragraph describing what it does and why it matters to THIS company specifically.
 - Best Approach should be ONE paragraph.
 - AI Insight: Concise, direct, to the point. State what tech they run today (name platforms), what AI they lack, and why the window is open. No buildup, no transitions, no filler.
+
+HIGHEST-IMPACT SOLUTIONS RULES:
+You must produce exactly 5 solutions, split into two categories:
+
+FIRST 3 — PROVEN SOLUTIONS (based on existing InstaLILY customer use cases):
+Review the PROVEN USE CASES section below. Select the 3 use cases that are MOST relevant to this company based on their industry, pain points, scale, and operations. Then tailor each one specifically to THIS company:
+- Rewrite the description so it references THIS company's specific systems, workflows, pain points, and business context.
+- Make it concrete — mention their ERP, CRM, industry terms, customer types, and operational specifics.
+- The solution name MUST include the existing customers InstaLILY already does this for in parentheses. Example: "Multi-Plant Production Intelligence Agent (Vanterra, Radwell, WWEX)" or "AI Lead Generation and Enrichment Engine (SRS, Copper State)".
+- Do NOT copy the use case description verbatim. Adapt it entirely to the target company.
+
+LAST 2 — NEW SOLUTIONS (original ideas from your research):
+These are entirely NEW use case ideas generated from your research of this company. They must NOT overlap with or be variations of any of the 3 proven solutions above. Think creatively about what else this company could automate or improve with agentic AI that is different from the proven use cases you already selected.
 
 CRITICAL: Return ONLY a valid JSON object. No markdown, no preamble, no backticks.
 
@@ -59,8 +82,8 @@ The JSON must have EXACTLY these top-level keys:
   ],
   "highest_impact_solutions": [
     {
-      "name": "Solution Name",
-      "description": "2-4 sentences: what it does, how it works, what systems it connects to, specific business outcome."
+      "name": "Solution Name (Customer1, Customer2)",
+      "description": "2-4 sentences: what it does, how it works, what systems it connects to, specific business outcome. Tailored to THIS company."
     }
   ],
   "best_approach": "One paragraph combining: the inflection point framing, how to position the solution, what language to use, what existing investments to build on, and what NOT to lead with.",
@@ -70,11 +93,14 @@ The JSON must have EXACTLY these top-level keys:
 IMPORTANT COUNTS:
 - meeting_attendees: include all provided attendees (0 if none)
 - core_pain_points: exactly 4
-- highest_impact_solutions: exactly 4
+- highest_impact_solutions: exactly 5 (first 3 proven, last 2 new)
 - ai_insight: 1 concise paragraph
 - best_approach: 1 paragraph
 
-Every claim should reference a specific number, system, person, or event."""
+Every claim should reference a specific number, system, person, or event.
+
+PROVEN USE CASES (for selecting the first 3 solutions):
+""" + _USE_CASES_TEXT
 
 
 def generate_brief(company_name, parent_context="", attendees=""):
