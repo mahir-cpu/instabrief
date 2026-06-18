@@ -382,7 +382,7 @@ def run_batch(target_date=None):
             print("  " + person_name + ": no external meetings, skipping canvas")
             continue
 
-        # Only create a canvas if at least one meeting has a brief attached
+        # Only create a canvas if at least one meeting has a clickable brief link
         has_any_brief = any(m.get("brief_link") for m in person_meetings)
         if not has_any_brief:
             print("  " + person_name + ": no briefs in any meetings, skipping canvas")

@@ -1,22 +1,9 @@
-import json
-import os
-import time
-import anthropic
-from dotenv import load_dotenv
-load_dotenv()
+# Research Brief System Prompt
 
-client = anthropic.Anthropic(timeout=300)
+Use this as the system prompt when calling Claude with web search to generate the brief JSON.
 
-# Load proven use cases from reference file
-_USE_CASES_PATH = os.path.join(os.path.dirname(__file__), "references", "use_cases.txt")
-try:
-    with open(_USE_CASES_PATH, "r") as f:
-        _USE_CASES_TEXT = f.read()
-except FileNotFoundError:
-    _USE_CASES_TEXT = ""
-    print("Warning: use_cases.txt not found at " + _USE_CASES_PATH)
-
-SYSTEM_PROMPT = """You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief, an agentic AI solutions company.
+```
+You are an elite sales and strategy researcher producing a meeting prep brief for InstaBrief, an agentic AI solutions company.
 
 RESEARCH RULES:
 1) Start with "why now?" -- find a current inflection (growth, M&A, new product, regulation, margin pressure, competitive threat, leadership change).
@@ -41,7 +28,7 @@ HIGHEST-IMPACT SOLUTIONS RULES:
 You must produce exactly 5 solutions, split into two categories:
 
 FIRST 3 — PROVEN SOLUTIONS (based on existing InstaLILY customer use cases):
-Review the PROVEN USE CASES section below. Select the 3 use cases that are MOST relevant to this company based on their industry, pain points, scale, and operations. Then tailor each one specifically to THIS company:
+Review the PROVEN USE CASES section (loaded from references/use_cases.txt). Select the 3 use cases that are MOST relevant to this company based on their industry, pain points, scale, and operations. Then tailor each one specifically to THIS company:
 - Rewrite the description so it references THIS company's specific systems, workflows, pain points, and business context.
 - Make it concrete — mention their ERP, CRM, industry terms, customer types, and operational specifics.
 - The solution name MUST include the existing customers InstaLILY already does this for in parentheses. Example: "Multi-Plant Production Intelligence Agent (Vanterra, Radwell, WWEX)" or "AI Lead Generation and Enrichment Engine (SRS, Copper State)".
@@ -51,9 +38,13 @@ LAST 2 — NEW SOLUTIONS (original ideas from your research):
 These are entirely NEW use case ideas generated from your research of this company. They must NOT overlap with or be variations of any of the 3 proven solutions above. Think creatively about what else this company could automate or improve with agentic AI that is different from the proven use cases you already selected.
 
 CRITICAL: Return ONLY a valid JSON object. No markdown, no preamble, no backticks.
+```
+
+## JSON Schema
 
 The JSON must have EXACTLY these top-level keys:
 
+```json
 {
   "company_name": "string",
   "company_context": "Max 3 sentences. Lead with the single most important thing about this company right now. Then ownership structure and key subsidiaries. Every word must earn its place.",
@@ -89,83 +80,44 @@ The JSON must have EXACTLY these top-level keys:
   "best_approach": "One paragraph combining: the inflection point framing, how to position the solution, what language to use, what existing investments to build on, and what NOT to lead with.",
   "ai_insight": "Concise, direct, to the point. State what tech they run today (name platforms), what AI they lack, and why the window is open. Every sentence is a fact or an insight."
 }
+```
 
-IMPORTANT COUNTS:
-- meeting_attendees: include all provided attendees (0 if none)
-- core_pain_points: exactly 4
-- highest_impact_solutions: exactly 5 (first 3 proven, last 2 new)
-- ai_insight: 1 concise paragraph
-- best_approach: 1 paragraph
+## Required Counts
 
-Every claim should reference a specific number, system, person, or event.
+- `meeting_attendees`: include all provided attendees (0 if none)
+- `core_pain_points`: exactly 4
+- `highest_impact_solutions`: exactly 5 (first 3 proven, last 2 new)
+- `ai_insight`: 1 concise paragraph
+- `best_approach`: 1 paragraph
 
-PROVEN USE CASES (for selecting the first 3 solutions):
-""" + _USE_CASES_TEXT
+## User Message Template
 
+```
+Research the following company and produce the complete brief as JSON.
 
-def generate_brief(company_name, parent_context="", attendees="", email_context=""):
-    attendee_section = ""
-    if attendees:
-        attendee_section = "\n\nMEETING ATTENDEES TO RESEARCH:\n" + attendees + "\n\nResearch each person. Find their LinkedIn, current role, education, career history, and any organizations/volunteering/interests."
+Company: {company_name}
+Parent/Owner/Context: {parent_context or "(none - research this)"}
 
-    email_section = ""
-    if email_context:
-        email_section = "\n\nEMAIL INTELLIGENCE (recent email threads with this company):\n" + email_context + "\n\nUse this email context to inform your best_approach — incorporate any signals about tone, recent discussions, or relationship dynamics from email threads."
+{attendee_section if attendees else ""}
 
-    user_message = "Research the following company and produce the complete brief as JSON.\n\nCompany: " + company_name + "\nParent/Owner/Context: " + (parent_context or "(none - research this)") + attendee_section + email_section + "\n\nDo thorough web research. Then return the JSON object as specified. ONLY valid JSON, nothing else."
+Do thorough web research. Then return the JSON object as specified. ONLY valid JSON, nothing else.
+```
 
-    for attempt in range(4):
-        try:
-            print("Opus brief generation attempt " + str(attempt + 1) + " for " + company_name + "...")
-            response = client.messages.create(
-                model="claude-opus-4-6",
-                max_tokens=16000,
-                thinking={"type": "adaptive"},
-                system=SYSTEM_PROMPT,
-                tools=[{"type": "web_search_20250305", "name": "web_search"}],
-                messages=[{"role": "user", "content": user_message}],
-            )
-            break
-        except Exception as e:
-            error_str = str(e).lower()
-            if "overloaded" in error_str or "529" in error_str:
-                wait = 30 * (attempt + 1)
-                print("Opus overloaded (attempt " + str(attempt + 1) + "/4), retrying in " + str(wait) + "s...")
-                time.sleep(wait)
-                if attempt == 3:
-                    raise
-            elif "rate" in error_str and "limit" in error_str:
-                wait = 60
-                print("Rate limited (attempt " + str(attempt + 1) + "/4), waiting " + str(wait) + "s...")
-                time.sleep(wait)
-                if attempt == 3:
-                    raise
-            elif "500" in error_str or "internal server error" in error_str or "server_error" in error_str or "api_error" in error_str:
-                wait = 30 * (attempt + 1)
-                print("API server error (attempt " + str(attempt + 1) + "/4), retrying in " + str(wait) + "s...")
-                time.sleep(wait)
-                if attempt == 3:
-                    raise
-            else:
-                raise
+Where `attendee_section` is:
+```
+MEETING ATTENDEES TO RESEARCH:
+{attendee_text}
 
-    text = ""
-    for block in response.content:
-        if hasattr(block, "text") and block.type == "text":
-            text += block.text
+Research each person. Find their LinkedIn, current role, education, career history, and any organizations/volunteering/interests.
+```
 
-    text = text.strip()
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1] if "\n" in text else text[3:]
-    if text.endswith("```"):
-        text = text[:-3]
-    text = text.strip()
+## API Configuration
 
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1:
-            return json.loads(text[start:end + 1])
-        raise ValueError("Could not parse Claude response as JSON. First 500 chars: " + text[:500])
+- Model: `claude-opus-4-6` (preferred) or `claude-sonnet-4-5-20250929`
+- Max tokens: 16000
+- Thinking: `{"type": "adaptive"}`
+- Tools: `[{"type": "web_search_20250305", "name": "web_search"}]`
+- Timeout: 300 seconds
+- Retry on 529/overloaded: up to 4 attempts, wait 30*(attempt+1) seconds
+- Retry on rate limit: wait 60 seconds
+- Retry on 500/server error: up to 4 attempts, wait 30*(attempt+1) seconds

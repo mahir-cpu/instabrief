@@ -14,13 +14,14 @@ from slack_sdk import WebClient
 slack_client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN", ""))
 
 CANVASES = [
-    {"user_id": "U04Q17ZN6KA", "label": "Sumo",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B1TCGQMC6"},
-    {"user_id": "U09ER8M51SB", "label": "Raghav",  "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B1Z2APTRA"},
-    {"user_id": "U0ANJUSLRQW", "label": "Jacob",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B1S2CUMFF"},
-    {"user_id": "U0AJ6PAJ4J2", "label": "Austen",  "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B28AWSA9F"},
-    {"user_id": "U0910396AQ3", "label": "Vir",     "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B1P2ZHWNP"},
-    {"user_id": "U08RSHZK822", "label": "Rohan",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B2PNA0E4Q"},
-    {"user_id": "U05CCR5S0TY", "label": "Iris",    "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B1Z2B6A76"},
+    {"user_id": "U04Q17ZN6KA", "label": "Sumo",    "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B64F154FR"},
+    {"user_id": "U09ER8M51SB", "label": "Raghav",  "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B6MQMEH3K"},
+    {"user_id": "U0ACF7D0BGS", "label": "Roxie",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B6HTG70MU"},
+    {"user_id": "U0ANJUSLRQW", "label": "Jacob",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B64FZ5SKZ"},
+    {"user_id": "U098RA9V3DL", "label": "Tyler",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B64FYDMKR"},
+    {"user_id": "U0AJ6PAJ4J2", "label": "Austen",  "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B6MQNAKRP"},
+    {"user_id": "U08RSHZK822", "label": "Rohan",   "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B6DJPD6NP"},
+    {"user_id": "U05CCR5S0TY", "label": "Iris",    "canvas_url": "https://instalily.slack.com/docs/T03AKM3LMGX/F0B6HTKGUSJ"},
 ]
 
 for c in CANVASES:
